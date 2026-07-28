@@ -56,6 +56,9 @@ class AetherConfigRepository private constructor(context: Context) {
         val coreLogLevelStr = prefs.getString("${prefix}core_log_level", AetherLogLevel.OFF.name) ?: AetherLogLevel.OFF.name
         val presetId = prefs.getString("${prefix}preset_id", "custom") ?: "custom"
 
+        val socksHost = prefs.getString("${prefix}socks_host", "127.0.0.1") ?: "127.0.0.1"
+        val cleanHost = if (socksHost == "198.18.0.1") "127.0.0.1" else socksHost
+        
         return AetherConfig(
             presetId = presetId,
             protocol = runCatching { AetherProtocol.valueOf(protocolStr) }.getOrDefault(AetherProtocol.MASQUE),
@@ -68,7 +71,8 @@ class AetherConfigRepository private constructor(context: Context) {
             fragmentDelay = prefs.getString("${prefix}fragment_delay", "2-10") ?: "2-10",
             noDataCheck = prefs.getBoolean("${prefix}no_data_check", false),
             quickReconnect = prefs.getBoolean("${prefix}quick_reconnect", true),
-            socksAddress = prefs.getString("${prefix}socks_address", "127.0.0.1:1819") ?: "127.0.0.1:1819",
+            socksHost = cleanHost,
+            socksPort = prefs.getString("${prefix}socks_port", "1819") ?: "1819",
             appLogLevel = runCatching { AetherLogLevel.valueOf(appLogLevelStr) }.getOrDefault(AetherLogLevel.INFO),
             coreLogLevel = runCatching { AetherLogLevel.valueOf(coreLogLevelStr) }.getOrDefault(AetherLogLevel.OFF),
             peer = prefs.getString("${prefix}peer", "") ?: "",
@@ -78,7 +82,8 @@ class AetherConfigRepository private constructor(context: Context) {
             noProfileRetry = prefs.getBoolean("${prefix}no_profile_retry", false),
             tlsGroups = prefs.getString("${prefix}tls_groups", "") ?: "",
             mtu = prefs.getInt("${prefix}mtu", 1100),
-            proxyOnly = prefs.getBoolean("${prefix}proxy_only", false)
+            proxyOnly = prefs.getBoolean("${prefix}proxy_only", false),
+            excludedPackages = prefs.getStringSet("${prefix}excluded_packages", emptySet()) ?: emptySet()
         )
     }
 
@@ -105,6 +110,14 @@ class AetherConfigRepository private constructor(context: Context) {
         prefs.edit().putString("onboarding_step_name", step.name).apply()
     }
 
+    fun getLastDismissedUpdate(): String {
+        return prefs.getString("last_dismissed_update", "") ?: ""
+    }
+
+    fun setLastDismissedUpdate(version: String) {
+        prefs.edit().putString("last_dismissed_update", version).apply()
+    }
+
     private fun saveToPrefs(prefix: String, cfg: AetherConfig) {
         prefs.edit().apply {
             putString("${prefix}preset_id", cfg.presetId)
@@ -118,7 +131,8 @@ class AetherConfigRepository private constructor(context: Context) {
             putString("${prefix}fragment_delay", cfg.fragmentDelay)
             putBoolean("${prefix}no_data_check", cfg.noDataCheck)
             putBoolean("${prefix}quick_reconnect", cfg.quickReconnect)
-            putString("${prefix}socks_address", cfg.socksAddress)
+            putString("${prefix}socks_host", cfg.socksHost)
+            putString("${prefix}socks_port", cfg.socksPort)
             putString("${prefix}app_log_level", cfg.appLogLevel.name)
             putString("${prefix}core_log_level", cfg.coreLogLevel.name)
             putString("${prefix}peer", cfg.peer)
@@ -129,6 +143,7 @@ class AetherConfigRepository private constructor(context: Context) {
             putString("${prefix}tls_groups", cfg.tlsGroups)
             putInt("${prefix}mtu", cfg.mtu)
             putBoolean("${prefix}proxy_only", cfg.proxyOnly)
+            putStringSet("${prefix}excluded_packages", cfg.excludedPackages)
             apply()
         }
     }

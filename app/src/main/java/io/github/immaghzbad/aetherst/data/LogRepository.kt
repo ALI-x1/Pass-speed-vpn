@@ -10,6 +10,7 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import io.github.immaghzbad.aetherst.model.AetherLogLevel
 import io.github.immaghzbad.aetherst.model.LogEntry
 import io.github.immaghzbad.aetherst.model.LogLevel
+import io.github.immaghzbad.aetherst.model.logIdGenerator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +55,8 @@ object LogRepository {
                 val loadedLogs = logListAdapter.fromJson(savedLogsJson)
                 if (loadedLogs != null) {
                     _logs.value = loadedLogs
+                    val maxId = loadedLogs.maxOfOrNull { it.id } ?: 0
+                    logIdGenerator.set(maxId + 1)
                 }
             } catch (_: Exception) {}
         }

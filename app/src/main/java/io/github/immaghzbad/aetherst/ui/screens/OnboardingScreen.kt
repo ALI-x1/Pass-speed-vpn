@@ -1,7 +1,7 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,6 +31,7 @@ fun OnboardingScreen(
     onUpdateScanMode: (AetherScanMode) -> Unit,
     onRequestVpnPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
+    onRequestBatteryOptimization: () -> Unit,
     onFinish: () -> Unit
 ) {
     Box(
@@ -69,7 +70,8 @@ fun OnboardingScreen(
                             onFinish
                         )
                         OnboardingStep.VPN_PERMISSION -> VpnPermissionStep(onRequestVpnPermission)
-                        OnboardingStep.NOTIFICATION_PERMISSION -> NotificationPermissionStep(onRequestNotificationPermission, onFinish)
+                        OnboardingStep.NOTIFICATION_PERMISSION -> NotificationPermissionStep(state, onRequestNotificationPermission)
+                        OnboardingStep.BATTERY_OPTIMIZATION -> BatteryOptimizationStep(onRequestBatteryOptimization, onFinish)
                         OnboardingStep.SUCCESS -> SuccessStep(onFinish)
                         else -> Box(Modifier.fillMaxSize())
                     }
@@ -83,6 +85,34 @@ fun OnboardingScreen(
 
 @Composable
 private fun OnboardingHeader() {
+    val slogans = listOf(
+        "Privacy at Warp Speed",
+        "Beyond Boundaries, Beyond Limits",
+        "Invisible, Untraceable, Unstoppable",
+        "The Future of Secure Networking",
+        "Your Digital Shield in the Shadows",
+        "Encryption Without Compromise",
+        "Defying Censorship, Ensuring Freedom",
+        "Secure, Free, and Ad-free",
+        "Secure Your Connection Instantly",
+        "Total Freedom for Every User",
+        "High-Performance Proxy Engine",
+        "Advanced Protection Against Tracking",
+        "Seamless Access to Global Content",
+        "Reliable Security for Your Data",
+        "Experience a Truly Open Internet",
+        "Optimized for Low-Latency Browsing",
+        "Your Trusted Companion for Privacy",
+        "Fast, Secure, and Reliable"
+    )
+    var index by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(3000L)
+            index = (index + 1) % slogans.size
+        }
+    }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(modifier = Modifier.height(48.dp))
         Text(
@@ -91,11 +121,23 @@ private fun OnboardingHeader() {
             fontWeight = FontWeight.Bold,
             color = Color.White
         )
-        Text(
-            text = "Secure Tunnel Engine",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF8E8E93)
-        )
+        Box(modifier = Modifier.height(24.dp), contentAlignment = Alignment.Center) {
+            AnimatedContent(
+                targetState = slogans[index],
+                transitionSpec = {
+                    (slideInVertically { it } + fadeIn(tween(600))) togetherWith
+                            (slideOutVertically { -it } + fadeOut(tween(600)))
+                },
+                label = "slogan_animation"
+            ) { slogan ->
+                Text(
+                    text = slogan,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF8E8E93),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 
@@ -284,8 +326,6 @@ private fun ProtocolRow(name: String, status: ProtocolTestStatus, isActive: Bool
                             ProtocolTestStatus.PREPARING -> "Preparing engine..."
                             ProtocolTestStatus.REGISTERING -> "Registering account..."
                             ProtocolTestStatus.IDENTITY_READY -> "Identity verified"
-                            ProtocolTestStatus.SCANNING -> "Scanning gateways..."
-                            ProtocolTestStatus.VALIDATING -> "Validating tunnel..."
                             else -> ""
                         },
                         style = MaterialTheme.typography.labelSmall,
@@ -329,7 +369,7 @@ private fun VpnPermissionStep(onRequest: () -> Unit) {
 }
 
 @Composable
-private fun NotificationPermissionStep(onRequest: () -> Unit, onSkip: () -> Unit) {
+private fun NotificationPermissionStep(state: OnboardingState, onRequest: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Stay Informed", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
@@ -348,8 +388,41 @@ private fun NotificationPermissionStep(onRequest: () -> Unit, onSkip: () -> Unit
         ) {
             Text("Enable Notifications", fontWeight = FontWeight.Bold, color = Color.White)
         }
+        if (state.error != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = state.error,
+                color = Color(0xFFFF9500),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun BatteryOptimizationStep(onRequest: () -> Unit, onSkip: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Unrestricted Background Service", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "To ensure a stable and persistent tunnel connection, please disable battery optimizations for AetherST.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF8E8E93),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(48.dp))
+        Button(
+            onClick = onRequest,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF), contentColor = Color.White)
+        ) {
+            Text("Disable Restrictions", fontWeight = FontWeight.Bold, color = Color.White)
+        }
         TextButton(onClick = onSkip) {
-            Text("Continue with Limited Notifications", color = Color.White)
+            Text("Not Now", color = Color.White)
         }
     }
 }
@@ -382,14 +455,28 @@ private fun SuccessStep(onFinish: () -> Unit) {
 private fun OnboardingFooter(currentStep: OnboardingStep) {
     Row(
         modifier = Modifier.padding(bottom = 32.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         OnboardingStep.entries.filter { it != OnboardingStep.COMPLETED }.forEach { step ->
+            val isSelected = step == currentStep
+            val width by animateDpAsState(
+                targetValue = if (isSelected) 24.dp else 8.dp,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                label = "indicator_width"
+            )
+            val color by animateColorAsState(
+                targetValue = if (isSelected) Color(0xFF007AFF) else Color(0xFF2C2C2E),
+                animationSpec = tween(400),
+                label = "indicator_color"
+            )
+
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .height(8.dp)
+                    .width(width)
                     .clip(CircleShape)
-                    .background(if (step == currentStep) Color(0xFF007AFF) else Color(0xFF2C2C2E))
+                    .background(color)
             )
         }
     }

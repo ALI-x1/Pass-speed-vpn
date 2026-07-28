@@ -46,15 +46,20 @@ class OnboardingViewModel(context: Context) : ViewModel() {
             OnboardingStep.WELCOME -> OnboardingStep.PROTOCOL_TEST
             OnboardingStep.PROTOCOL_TEST -> OnboardingStep.VPN_PERMISSION
             OnboardingStep.VPN_PERMISSION -> OnboardingStep.NOTIFICATION_PERMISSION
-            OnboardingStep.NOTIFICATION_PERMISSION -> OnboardingStep.SUCCESS
+            OnboardingStep.NOTIFICATION_PERMISSION -> OnboardingStep.BATTERY_OPTIMIZATION
+            OnboardingStep.BATTERY_OPTIMIZATION -> OnboardingStep.SUCCESS
             OnboardingStep.SUCCESS -> OnboardingStep.COMPLETED
             OnboardingStep.COMPLETED -> OnboardingStep.COMPLETED
         }
         updateStep(nextStep)
     }
 
+    fun showNotificationError() {
+        _state.value = _state.value.copy(error = "Notification permission is required for app quality and tunnel status updates.")
+    }
+
     private fun updateStep(step: OnboardingStep) {
-        _state.value = _state.value.copy(currentStep = step)
+        _state.value = _state.value.copy(currentStep = step, error = null)
         repository.setOnboardingStep(step)
         if (step == OnboardingStep.COMPLETED) {
             repository.setOnboardingComplete(complete = true)
@@ -124,7 +129,22 @@ class OnboardingViewModel(context: Context) : ViewModel() {
         currentSessionId.incrementAndGet()
         testJob?.cancel()
         registrationRunner.stop()
-        _state.value = _state.value.copy(isProcessing = false, activeProtocol = null)
+        
+        val currentResults = _state.value.protocolResults.map { result ->
+            when (result.status) {
+                ProtocolTestStatus.CONNECTED,
+                ProtocolTestStatus.FAILED,
+                ProtocolTestStatus.TIMED_OUT,
+                ProtocolTestStatus.CANCELLED -> result
+                else -> result.copy(status = ProtocolTestStatus.CANCELLED)
+            }
+        }
+        
+        _state.value = _state.value.copy(
+            isProcessing = false, 
+            activeProtocol = null,
+            protocolResults = currentResults
+        )
     }
 
     private suspend fun runSingleProtocolTest(protocol: AetherProtocol, sessionId: Long): RegistrationResult {
@@ -161,11 +181,11 @@ class OnboardingViewModel(context: Context) : ViewModel() {
 
     private fun getTimeoutForProtocol(protocol: AetherProtocol, scanMode: AetherScanMode): Long {
         val base = when (protocol) {
-            AetherProtocol.MASQUE -> 75000L
-            AetherProtocol.WG -> 60000L
-            AetherProtocol.GOOL -> 90000L
+            AetherProtocol.MASQUE -> 15000L
+            AetherProtocol.WG -> 10000L
+            AetherProtocol.GOOL -> 20000L
         }
-        return if (scanMode == AetherScanMode.TURBO) base else base + 30000L
+        return if (scanMode == AetherScanMode.TURBO) base else base + 10000L
     }
 
     override fun onCleared() {

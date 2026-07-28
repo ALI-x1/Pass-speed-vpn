@@ -71,10 +71,13 @@ class AetherRegistrationRunner(private val context: Context) {
             val binaryFile = BinaryManager.prepareBinary(context)
             if (currentAttemptId.get() != attemptId) return RegistrationResult.Cancelled
 
+            val port = config.socksPort.toIntOrNull() ?: 1819
+            val bindAddr = "${config.socksHost}:$port"
+
             val commandList = mutableListOf<String>()
             commandList.add(binaryFile.absolutePath)
             commandList.add("--bind")
-            commandList.add("127.0.0.1:1819")
+            commandList.add(bindAddr)
 
             if (config.h2Mode) commandList.add("--h2")
             if (config.quickReconnect) commandList.add("--quick-reconnect") else commandList.add("--no-quick-reconnect")
@@ -91,7 +94,7 @@ class AetherRegistrationRunner(private val context: Context) {
             env["AETHER_SCAN"] = config.scanMode.rawValue
             env["AETHER_IP"] = config.ipMode.rawValue
             env["AETHER_NOIZE"] = config.noise.rawValue
-            env["AETHER_SOCKS"] = "127.0.0.1:1819"
+            env["AETHER_SOCKS"] = bindAddr
             env["AETHER_LOG"] = "info"
 
             if (config.h2Mode) env["AETHER_MASQUE_HTTP2"] = "1"
@@ -102,7 +105,7 @@ class AetherRegistrationRunner(private val context: Context) {
 
             pb.redirectErrorStream(true)
 
-            LogRepository.i("Onboarding test: protocol=${protocol.name}, scan=${config.scanMode.name}, ip=${config.ipMode.name}")
+            LogRepository.i("Onboarding test: protocol=${protocol.name}, scan=${config.scanMode.name}, port=$port")
 
             proc = withContext(Dispatchers.IO) { pb.start() }
             synchronized(lock) {
@@ -113,7 +116,6 @@ class AetherRegistrationRunner(private val context: Context) {
                 process = proc
             }
 
-            var isRegistered = false
             var outerValidated = false
             var innerValidated = false
             var isListening = false
@@ -130,38 +132,14 @@ class AetherRegistrationRunner(private val context: Context) {
                     LogRepository.i(line, "AetherRegistration")
                     val lower = line.lowercase()
 
-                    if (!isRegistered) {
-                        if (lower.contains("provisioned and saved") || lower.contains("identity ready")) {
-                            isRegistered = true
-                            onStatusUpdate(ProtocolTestStatus.IDENTITY_READY)
-                        } else if (lower.contains("enrolling")) {
-                            onStatusUpdate(ProtocolTestStatus.REGISTERING)
-                        }
-                    }
-
-                    if (lower.contains("scanning")) {
-                        onStatusUpdate(ProtocolTestStatus.SCANNING)
-                    } else if (lower.contains("validating")) {
-                        onStatusUpdate(ProtocolTestStatus.VALIDATING)
-                    }
-
-                    if (protocol == AetherProtocol.GOOL) {
-                        if (lower.contains("[outer] wireguard tunnel validated")) {
-                            outerValidated = true
-                        }
-                        if (lower.contains("[inner] wireguard tunnel validated")) {
-                            innerValidated = true
-                        }
-                    } else {
-                        if (lower.contains("tunnel validated") || lower.contains("wireguard tunnel validated")) {
-                            outerValidated = true
-                            innerValidated = true
-                        }
-                    }
-
-                    if (lower.contains("listening on 127.0.0.1:1819")) {
+                    if (lower.contains("provisioned and saved") || lower.contains("identity ready")) {
+                        onStatusUpdate(ProtocolTestStatus.IDENTITY_READY)
+                        outerValidated = true
+                        innerValidated = true
                         isListening = true
-                        if (outerValidated && (protocol != AetherProtocol.GOOL || innerValidated)) break
+                        break
+                    } else if (lower.contains("enrolling")) {
+                        onStatusUpdate(ProtocolTestStatus.REGISTERING)
                     }
 
                     if (lower.contains("fatal") || lower.contains("panic")) {
@@ -171,7 +149,7 @@ class AetherRegistrationRunner(private val context: Context) {
                         return RegistrationResult.Failed("API registration failure")
                     }
                     if (lower.contains("address already in use")) {
-                        return RegistrationResult.Failed("Port 1819 is busy")
+                        return RegistrationResult.Failed("Port $port is busy")
                     }
                 }
             }

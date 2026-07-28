@@ -25,7 +25,7 @@ object IpInfoRepository {
     private val _ipInfo = MutableStateFlow(IpInfo())
     val ipInfo: StateFlow<IpInfo> = _ipInfo.asStateFlow()
 
-    suspend fun fetchIpInfo(socksAddress: String = "127.0.0.1:1819", useProxy: Boolean = true) {
+    suspend fun fetchIpInfo(socksHost: String = "127.0.0.1", socksPort: Int = 1819, useProxy: Boolean = true) {
         _ipInfo.value = _ipInfo.value.copy(isLoading = true)
 
         withContext(Dispatchers.IO) {
@@ -35,16 +35,12 @@ object IpInfoRepository {
                     return@withContext
                 }
             } else {
-                val parts = socksAddress.split(":")
-                val host = if (parts.isNotEmpty()) parts[0] else "127.0.0.1"
-                val port = if (parts.size > 1) parts[1].toIntOrNull() ?: 1819 else 1819
-
                 delay(1200)
 
                 for (attempt in 1..3) {
-                    LogRepository.i("Fetching IP via SOCKS5 ($host:$port) [Attempt $attempt/3]...", "IpWhois")
+                    LogRepository.i("Fetching IP via SOCKS5 ($socksHost:$socksPort) [Attempt $attempt/3]...", "IpWhois")
 
-                    val success = tryFetchFromIpWhois(host, port) || tryFetchFromIpApi(host, port)
+                    val success = tryFetchFromIpWhois(socksHost, socksPort) || tryFetchFromIpApi(socksHost, socksPort)
                     if (success) return@withContext
 
                     if (attempt < 3) {

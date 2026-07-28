@@ -36,20 +36,20 @@ class AetherProcessRunner(private val context: Context) {
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    fun start(config: AetherConfig) {
+    fun start(config: AetherConfig, bindAddress: String) {
         synchronized(lock) {
             if (runnerJob?.isActive == true) return
 
             val attemptId = currentAttemptId.incrementAndGet()
             runnerJob = scope.launch {
                 var retryCount = 0
-                val maxRetries = 5
 
-                while (isActive && (currentAttemptId.get() == attemptId) && (retryCount <= maxRetries)) {
+                while (isActive && (currentAttemptId.get() == attemptId)) {
                     if (retryCount > 0) {
-                        LogRepository.i("Restarting tunnel (Attempt ${retryCount + 1}/$maxRetries)...")
+                        val waitTime = (retryCount * 1000L).coerceAtMost(10000L)
+                        LogRepository.i("Re-initializing tunnel (Retry cycle $retryCount)...")
                         updateState(ConnectionState.RECONNECTING, attemptId)
-                        delay(2000.milliseconds)
+                        delay(waitTime.milliseconds)
                     } else {
                         LogRepository.i("Initializing Aether Core...")
                         updateState(ConnectionState.SCANNING, attemptId)
@@ -58,26 +58,28 @@ class AetherProcessRunner(private val context: Context) {
                     if (currentAttemptId.get() != attemptId) break
 
                     try {
-                        val result = runBinary(config, attemptId)
-                        if (result || (currentAttemptId.get() != attemptId)) break
+                        val result = runBinary(config, attemptId, bindAddress)
+                        if (currentAttemptId.get() != attemptId) break
+                        
+                        if (!result) {
+                            LogRepository.e("Core stabilization failed, triggering retry.")
+                        }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        LogRepository.e("Execution cycle error: ${e.localizedMessage}")
+                        LogRepository.e("Execution cycle critical error: ${e.localizedMessage}")
                     }
 
                     retryCount++
-                }
-
-                if (isActive && (currentAttemptId.get() == attemptId) && (retryCount > maxRetries)) {
-                    LogRepository.e("Tunnel stabilization failed.")
-                    updateState(ConnectionState.ERROR, attemptId)
+                    if (connectionState.value == ConnectionState.CONNECTED) {
+                        retryCount = 1
+                    }
                 }
             }
         }
     }
 
-    private suspend fun runBinary(config: AetherConfig, attemptId: Long): Boolean {
+    private suspend fun runBinary(config: AetherConfig, attemptId: Long, bindAddress: String): Boolean {
         var proc: Process? = null
         return try {
             val binaryFile = BinaryManager.prepareBinary(context)
@@ -86,7 +88,7 @@ class AetherProcessRunner(private val context: Context) {
             val commandList = mutableListOf<String>()
             commandList.add(binaryFile.absolutePath)
             commandList.add("--bind")
-            commandList.add(config.socksAddress)
+            commandList.add(bindAddress)
 
             commandList.add(
                 when (config.ipMode) {
@@ -132,7 +134,7 @@ class AetherProcessRunner(private val context: Context) {
             env["AETHER_NOIZE"] = config.noise.rawValue
             env["AETHER_SCAN"] = config.scanMode.rawValue
             env["AETHER_IP"] = config.ipMode.rawValue
-            env["AETHER_SOCKS"] = config.socksAddress
+            env["AETHER_SOCKS"] = bindAddress
             env["AETHER_LOG"] = config.coreLogLevel.rawValue
 
             if (config.h2Mode) env["AETHER_MASQUE_HTTP2"] = "1"
@@ -217,6 +219,12 @@ class AetherProcessRunner(private val context: Context) {
         val isCriticalError = (lower.contains("fatal") || lower.contains("panic")) &&
                 !lower.contains("socksbridge") &&
                 !lower.contains("connection failed")
+        
+        val isLost = lower.contains("tunnel lost") || 
+                     lower.contains("handshake timeout") || 
+                     lower.contains("handshake failed") ||
+                     lower.contains("connection refused") ||
+                     lower.contains("all gateways failed")
 
         when {
             lower.contains("scanning") -> {
@@ -247,7 +255,7 @@ class AetherProcessRunner(private val context: Context) {
                 updateState(ConnectionState.CONNECTED, attemptId)
             }
 
-            lower.contains("reconnecting") -> {
+            lower.contains("reconnecting") || isLost -> {
                 goolOuterValidated = false
                 updateState(ConnectionState.RECONNECTING, attemptId)
             }

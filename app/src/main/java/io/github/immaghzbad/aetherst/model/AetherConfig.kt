@@ -59,7 +59,8 @@ data class AetherConfig(
     val fragmentDelay: String = "2-10",
     val noDataCheck: Boolean = false,
     val quickReconnect: Boolean = true,
-    val socksAddress: String = "127.0.0.1:1819",
+    val socksHost: String = "127.0.0.1",
+    val socksPort: String = "1819",
     val appLogLevel: AetherLogLevel = AetherLogLevel.INFO,
     val coreLogLevel: AetherLogLevel = AetherLogLevel.OFF,
     val peer: String = "",
@@ -69,5 +70,6 @@ data class AetherConfig(
     val noProfileRetry: Boolean = false,
     val tlsGroups: String = "",
     val mtu: Int = 1100,
-    val proxyOnly: Boolean = false
+    val proxyOnly: Boolean = false,
+    val excludedPackages: Set<String> = emptySet()
 )

@@ -1,5 +1,6 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -8,12 +9,15 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,11 +49,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -58,7 +64,13 @@ import io.github.immaghzbad.aetherst.data.IpInfo
 import io.github.immaghzbad.aetherst.data.PingState
 import io.github.immaghzbad.aetherst.model.AetherConfig
 import io.github.immaghzbad.aetherst.model.AetherProtocol
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.keyframes
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import io.github.immaghzbad.aetherst.model.ConnectionState
+import kotlinx.coroutines.launch
 import io.github.immaghzbad.aetherst.model.SessionTraffic
 import java.util.Locale
 
@@ -84,91 +96,118 @@ fun DashboardScreen(
     onRefreshPing: () -> Unit = {},
     bottomContentPadding: Dp = 0.dp
 ) {
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(
-                start = 16.dp,
-                top = 12.dp,
-                end = 16.dp,
-                bottom = bottomContentPadding + 12.dp
-            ),
-        verticalArrangement = Arrangement.SpaceBetween
     ) {
+        val screenWidth = this.maxWidth
+        val screenHeight = this.maxHeight
+        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.65f, 1.1f)
+        val isCompactHeight = screenHeight < 640.dp
+        val isVeryCompactHeight = screenHeight < 580.dp
+        val horizontalPadding = if (screenWidth < 360.dp) 8.dp else 16.dp
+
         Column(
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = horizontalPadding,
+                    top = 8.dp,
+                    end = horizontalPadding,
+                    bottom = bottomContentPadding + 8.dp
+                ),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                verticalArrangement = Arrangement.spacedBy(if (screenWidth < 360.dp) 8.dp else 12.dp)
             ) {
-                Column {
-                    Text(
-                        text = "AetherST Tunnel",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "One tap. Private everywhere.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = IosSecondaryLabel
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = IosGroupBg
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "v1.0.0-BETA",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = IosActiveBlue
+                    Column {
+                        Text(
+                            text = "AetherST Tunnel",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = (26 * scaleFactor).sp,
+                            lineHeight = (30 * scaleFactor).sp
+                        )
+                        Text(
+                            text = "One tap. Private everywhere.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IosSecondaryLabel,
+                            fontSize = (10 * scaleFactor).sp
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = IosGroupBg
+                    ) {
+                        Text(
+                            text = "v1.1.0-BETA",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = IosActiveBlue,
+                            fontSize = (8 * scaleFactor).sp
+                        )
+                    }
+                }
+
+                IosStatusHeroCard(
+                    connectionState = connectionState,
+                    elapsedSeconds = elapsedSeconds,
+                    sessionTraffic = sessionTraffic,
+                    config = config,
+                    ipInfo = ipInfo,
+                    pingState = pingState,
+                    onRefreshIpInfo = onRefreshIpInfo,
+                    onRefreshPing = onRefreshPing,
+                    hideConfigChips = isCompactHeight,
+                    scaleFactor = scaleFactor
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val minDim = if (screenWidth < screenHeight) screenWidth else screenHeight
+                val buttonSize = (minDim * 0.35f).coerceIn(100.dp, 160.dp)
+                
+                IosPowerButton(
+                    connectionState = connectionState,
+                    onToggle = onToggleVpn,
+                    size = buttonSize
+                )
+            }
+
+            if (!isVeryCompactHeight) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                ) {
+                    IosProtocolSegmentedControl(
+                        selectedProtocol = config.protocol,
+                        onProtocolSelected = onUpdateProtocol,
+                        enabled = connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.ERROR,
+                        scaleFactor = scaleFactor
                     )
                 }
             }
-
-            IosStatusHeroCard(
-                connectionState = connectionState,
-                elapsedSeconds = elapsedSeconds,
-                sessionTraffic = sessionTraffic,
-                config = config,
-                ipInfo = ipInfo,
-                pingState = pingState,
-                onRefreshIpInfo = onRefreshIpInfo,
-                onRefreshPing = onRefreshPing
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            IosPowerButton(
-                connectionState = connectionState,
-                onToggle = onToggleVpn
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp)
-        ) {
-            IosProtocolSegmentedControl(
-                selectedProtocol = config.protocol,
-                onProtocolSelected = onUpdateProtocol,
-                enabled = connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.ERROR
-            )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun IosStatusHeroCard(
     connectionState: ConnectionState,
@@ -178,7 +217,9 @@ fun IosStatusHeroCard(
     ipInfo: IpInfo = IpInfo(),
     pingState: PingState = PingState(),
     onRefreshIpInfo: () -> Unit = {},
-    onRefreshPing: () -> Unit = {}
+    onRefreshPing: () -> Unit = {},
+    hideConfigChips: Boolean = false,
+    scaleFactor: Float = 1f
 ) {
     val statusColor by animateColorAsState(
         targetValue = when (connectionState) {
@@ -194,7 +235,7 @@ fun IosStatusHeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("status_hero_card"),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = IosCardBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -209,7 +250,7 @@ fun IosStatusHeroCard(
                         )
                     )
                 )
-                .padding(18.dp)
+                .padding((14 * scaleFactor).dp)
         ) {
             Column {
                 Row(
@@ -220,16 +261,16 @@ fun IosStatusHeroCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size((7 * scaleFactor).dp)
                                 .clip(CircleShape)
                                 .background(statusColor)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width((5 * scaleFactor).dp))
                         Text(
                             text = when (connectionState) {
                                 ConnectionState.CONNECTED -> "SECURELY CONNECTED"
-                                ConnectionState.SCANNING -> "SCANNING GATEWAYS..."
-                                ConnectionState.VALIDATING -> "VALIDATING PROBE..."
+                                ConnectionState.SCANNING -> "SCANNING..."
+                                ConnectionState.VALIDATING -> "VALIDATING..."
                                 ConnectionState.RECONNECTING -> "RECONNECTING..."
                                 ConnectionState.DISCONNECTING -> "DISCONNECTING..."
                                 ConnectionState.ERROR -> "CONNECTION ERROR"
@@ -238,12 +279,13 @@ fun IosStatusHeroCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp,
-                            color = statusColor
+                            color = statusColor,
+                            fontSize = (8.5 * scaleFactor).sp
                         )
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = IosGroupBg
                     ) {
                         val protocolText = if (config.protocol == AetherProtocol.MASQUE) {
@@ -253,15 +295,16 @@ fun IosStatusHeroCard(
                         }
                         Text(
                             text = protocolText,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = IosActiveBlue
+                            color = IosActiveBlue,
+                            fontSize = (8.5 * scaleFactor).sp
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height((10 * scaleFactor).dp))
 
                 Row(
                     verticalAlignment = Alignment.Bottom,
@@ -270,15 +313,11 @@ fun IosStatusHeroCard(
                 ) {
                     Column {
                         Text(
-                            text = if (connectionState == ConnectionState.CONNECTED || connectionState == ConnectionState.RECONNECTING || elapsedSeconds > 0L) "Tunnel Uptime" else "Standby Duration",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = IosSecondaryLabel
-                        )
-                        Text(
                             text = formatTime(elapsedSeconds),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White,
+                            fontSize = (28 * scaleFactor).sp
                         )
                     }
 
@@ -288,54 +327,56 @@ fun IosStatusHeroCard(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { onRefreshPing() }
-                                .padding(4.dp)
+                                .padding(2.dp)
                         ) {
                             if (pingState.isPinging) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(14.dp),
+                                    modifier = Modifier.size((11 * scaleFactor).dp),
                                     color = IosActiveBlue,
-                                    strokeWidth = 2.dp
+                                    strokeWidth = 1.5.dp
                                 )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Speed,
                                     contentDescription = "Ping",
                                     tint = if (pingState.error != null) IosErrorRed else IosActiveBlue,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size((15 * scaleFactor).dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             Text(
                                 text = when {
                                     pingState.isPinging -> "..."
-                                    pingState.error != null -> pingState.error
-                                    pingState.ms >= 0 -> "${pingState.ms} ms"
+                                    pingState.error != null -> "ERROR"
+                                    pingState.ms >= 0 -> "${pingState.ms}ms"
                                     else -> "Ping"
                                 },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (pingState.error != null) IosErrorRed else IosActiveBlue
+                                color = if (pingState.error != null) IosErrorRed else IosActiveBlue,
+                                fontSize = (12 * scaleFactor).sp
                             )
                         }
                     } else {
                         Text(
-                            text = if (connectionState == ConnectionState.RECONNECTING) "RETRYING" else "OFFLINE",
+                            text = if (connectionState == ConnectionState.RECONNECTING) "RETRY" else "OFFLINE",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (connectionState == ConnectionState.RECONNECTING) IosScanningAmber else IosSecondaryLabel,
-                            modifier = Modifier.clickable { onRefreshPing() }
+                            modifier = Modifier.clickable { onRefreshPing() },
+                            fontSize = (10 * scaleFactor).sp
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height((8 * scaleFactor).dp))
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(IosGroupBg)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     TrafficValue(
@@ -343,28 +384,41 @@ fun IosStatusHeroCard(
                         value = formatTrafficBytes(sessionTraffic.uploadedBytes),
                         color = IosActiveBlue,
                         alignment = Alignment.Start,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        scaleFactor = scaleFactor
                     )
                     TrafficValue(
                         label = "DOWNLOAD",
                         value = formatTrafficBytes(sessionTraffic.downloadedBytes),
                         color = IosActiveGreen,
                         alignment = Alignment.End,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        scaleFactor = scaleFactor
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height((8 * scaleFactor).dp))
+
+                val clipboardManager = LocalClipboardManager.current
+                val context = LocalContext.current
 
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onRefreshIpInfo() },
+                        .clip(RoundedCornerShape(8.dp))
+                        .combinedClickable(
+                            onClick = { onRefreshIpInfo() },
+                            onLongClick = {
+                                if (ipInfo.ip.isNotEmpty()) {
+                                    clipboardManager.setText(AnnotatedString(ipInfo.ip))
+                                    Toast.makeText(context, "IP copied", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ),
                     color = IosGroupBg
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -374,65 +428,63 @@ fun IosStatusHeroCard(
                         ) {
                             Text(
                                 text = ipInfo.flagEmoji.ifEmpty { "🌐" },
-                                fontSize = 20.sp
+                                fontSize = (16 * scaleFactor).sp
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Column {
                                 Text(
                                     text = when {
                                         ipInfo.country.isNotEmpty() -> if (ipInfo.countryCode.isNotEmpty()) "${ipInfo.country} (${ipInfo.countryCode})" else ipInfo.country
-                                        ipInfo.isLoading -> "Resolving Location..."
-                                        ipInfo.error != null -> "Geo Query Failed (Tap to retry)"
-                                        else -> "Unknown Location"
+                                        ipInfo.isLoading -> "Wait..."
+                                        ipInfo.error != null -> "Error"
+                                        else -> "Unknown"
                                     },
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White,
+                                    fontSize = (11 * scaleFactor).sp
                                 )
                                 Text(
-                                    text = when {
-                                        ipInfo.ip.isNotEmpty() -> "IP: ${ipInfo.ip}"
-                                        ipInfo.isLoading -> if (connectionState == ConnectionState.CONNECTED) "Querying via SOCKS5..." else "Querying directly..."
-                                        ipInfo.error != null -> ipInfo.error
-                                        else -> "Tap to refresh IP info"
-                                    },
+                                    text = if (ipInfo.ip.isNotEmpty()) ipInfo.ip else "Tap refresh",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (ipInfo.error != null) IosScanningAmber else IosSecondaryLabel,
-                                    fontSize = 11.sp
+                                    fontSize = (9 * scaleFactor).sp
                                 )
                             }
                         }
 
                         if (ipInfo.isLoading) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size((12 * scaleFactor).dp),
                                 color = IosActiveBlue,
-                                strokeWidth = 2.dp
+                                strokeWidth = 1.5.dp
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh Location",
+                                contentDescription = "Refresh",
                                 tint = IosSecondaryLabel,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size((12 * scaleFactor).dp)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                if (!hideConfigChips) {
+                    Spacer(modifier = Modifier.height((10 * scaleFactor).dp))
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(IosGroupBg)
-                        .padding(10.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    IosConfigChip(label = "NOISE", value = config.noise.displayName.split(" ")[0])
-                    IosConfigChip(label = "SCAN", value = config.scanMode.name.lowercase().replaceFirstChar { it.uppercase() })
-                    IosConfigChip(label = "IP STACK", value = config.ipMode.rawValue)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(IosGroupBg)
+                            .padding(6.dp),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        IosConfigChip(label = "NOISE", value = config.noise.displayName.split(" ")[0], scaleFactor = scaleFactor)
+                        IosConfigChip(label = "SCAN", value = config.scanMode.name.take(6), scaleFactor = scaleFactor)
+                        IosConfigChip(label = "IP STACK", value = config.ipMode.rawValue, scaleFactor = scaleFactor)
+                    }
                 }
             }
         }
@@ -440,62 +492,86 @@ fun IosStatusHeroCard(
 }
 
 @Composable
-private fun TrafficValue(label: String, value: String, color: Color, alignment: Alignment.Horizontal, modifier: Modifier = Modifier) {
+private fun TrafficValue(label: String, value: String, color: Color, alignment: Alignment.Horizontal, modifier: Modifier = Modifier, scaleFactor: Float = 1f) {
     Column(modifier = modifier, horizontalAlignment = alignment) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = IosSecondaryLabel,
-            fontSize = 10.sp
+            fontSize = (8 * scaleFactor).sp
         )
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = color
+            color = color,
+            fontSize = (12 * scaleFactor).sp
         )
     }
 }
 
 @Composable
-fun IosConfigChip(label: String, value: String) {
+fun IosConfigChip(label: String, value: String, scaleFactor: Float = 1f) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = IosSecondaryLabel, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Text(text = value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = IosSecondaryLabel, fontSize = (8 * scaleFactor).sp, fontWeight = FontWeight.Bold)
+        Text(text = value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White, fontSize = (10 * scaleFactor).sp)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun IosPowerButton(
     connectionState: ConnectionState,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    size: Dp = 140.dp
 ) {
     val isConnected = connectionState == ConnectionState.CONNECTED
     val isWorking = connectionState == ConnectionState.SCANNING ||
                     connectionState == ConnectionState.VALIDATING ||
                     connectionState == ConnectionState.RECONNECTING ||
                     connectionState == ConnectionState.DISCONNECTING
+    val isError = connectionState == ConnectionState.ERROR
     val canToggle = connectionState != ConnectionState.DISCONNECTING
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val scope = rememberCoroutineScope()
+
+    val shakeOffset = remember { Animatable(0f) }
+    LaunchedEffect(connectionState) {
+        if (isError) {
+            shakeOffset.animateTo(
+                targetValue = 0f,
+                animationSpec = keyframes {
+                    durationMillis = 500
+                    20f at 100
+                    20f at 200
+                    20f at 300
+                    20f at 400
+                }
+            )
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "refinedGlow")
+
+    val breathingScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (isWorking) 1.12f else 1f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "breathingScale"
+    )
 
     val buttonScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.85f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        targetValue = if (isPressed) 0.88f else if (isWorking) breathingScale else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         label = "buttonScale"
     )
 
-    val cornerRadius by animateDpAsState(
-        targetValue = if (isConnected || isWorking) 32.dp else 60.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioHighBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+    val cornerRadiusPercent by animateFloatAsState(
+        targetValue = if (isConnected || isWorking) 0.28f else 0.5f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "cornerRadius"
     )
 
@@ -503,64 +579,85 @@ fun IosPowerButton(
         targetValue = when {
             isConnected -> IosActiveGreen
             isWorking -> IosScanningAmber
+            isError -> IosErrorRed
             else -> IosActiveBlue
         },
         animationSpec = tween(durationMillis = 600),
         label = "buttonColor"
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "m3Pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (isWorking) 1.35f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseScale"
+    val glowScale by infiniteTransition.animateFloat(
+        initialValue = 1.2f,
+        targetValue = if (isConnected) 1.8f else 1.5f,
+        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Reverse),
+        label = "glowScale"
+    )
+
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f, targetValue = 0.05f,
+        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Reverse),
+        label = "glowAlpha"
     )
 
     Box(
         modifier = Modifier
-            .padding(vertical = 12.dp)
-            .graphicsLayer {
-                scaleX = buttonScale
-                scaleY = buttonScale
-            },
+            .size(size * 2.5f)
+            .graphicsLayer { translationX = shakeOffset.value },
         contentAlignment = Alignment.Center
     ) {
         if (isWorking || isConnected) {
+            val pulseColor = buttonColor.copy(alpha = 0.45f)
+            val glowShape = RoundedCornerShape(size * cornerRadiusPercent)
+
             Box(
                 modifier = Modifier
-                    .size(180.dp)
+                    .size(size)
                     .graphicsLayer {
-                        scaleX = pulseScale
-                        scaleY = pulseScale
-                        alpha = if (isWorking) 0.25f else 0.12f
+                        scaleX = glowScale
+                        scaleY = glowScale
+                        alpha = glowAlpha
                     }
-                    .background(buttonColor, CircleShape)
+                    .background(pulseColor, glowShape)
             )
+
+            if (isConnected) {
+                Box(
+                    modifier = Modifier
+                        .size(size)
+                        .graphicsLayer {
+                            scaleX = glowScale * 0.75f
+                            scaleY = glowScale * 0.75f
+                            alpha = glowAlpha * 1.8f
+                        }
+                        .background(pulseColor, glowShape)
+                )
+            }
         }
 
         Surface(
             modifier = Modifier
-                .size(120.dp)
+                .size(size)
+                .graphicsLayer {
+                    scaleX = buttonScale
+                    scaleY = buttonScale
+                }
                 .shadow(
-                    elevation = if (isPressed) 4.dp else 16.dp,
-                    shape = RoundedCornerShape(cornerRadius),
-                    ambientColor = buttonColor.copy(alpha = 0.4f),
+                    elevation = if (isPressed) 6.dp else 24.dp,
+                    shape = RoundedCornerShape(size * cornerRadiusPercent),
+                    ambientColor = buttonColor.copy(alpha = 0.6f),
                     spotColor = buttonColor
                 )
-                .clip(RoundedCornerShape(cornerRadius))
-                .clickable(
+                .clip(RoundedCornerShape(size * cornerRadiusPercent))
+                .combinedClickable(
                     interactionSource = interactionSource,
                     indication = null,
                     enabled = canToggle,
-                    onClick = onToggle
-                )
-                .testTag("power_toggle_button"),
+                    onClick = {
+                        scope.launch { onToggle() }
+                    }
+                ),
             color = buttonColor,
-            tonalElevation = 10.dp
+            tonalElevation = 14.dp
         ) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -572,7 +669,8 @@ fun IosPowerButton(
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.White.copy(alpha = 0.25f),
+                                    Color.White.copy(alpha = 0.35f),
+                                    Color.White.copy(alpha = 0.05f),
                                     Color.Transparent
                                 )
                             )
@@ -581,9 +679,9 @@ fun IosPowerButton(
 
                 Icon(
                     imageVector = Icons.Default.PowerSettingsNew,
-                    contentDescription = "Toggle Connection",
+                    contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(size * 0.45f)
                 )
             }
         }
@@ -594,7 +692,8 @@ fun IosPowerButton(
 fun IosProtocolSegmentedControl(
     selectedProtocol: AetherProtocol,
     onProtocolSelected: (AetherProtocol) -> Unit,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    scaleFactor: Float = 1f
 ) {
     Column {
         Text(
@@ -602,17 +701,17 @@ fun IosProtocolSegmentedControl(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = IosSecondaryLabel,
-            fontSize = 11.sp,
+            fontSize = (9 * scaleFactor).sp,
             letterSpacing = 0.5.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
         )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(IosCardBg)
-                .padding(3.dp),
+                .padding(2.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             AetherProtocol.entries.forEach { proto ->
@@ -620,12 +719,12 @@ fun IosProtocolSegmentedControl(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(6.dp))
                         .background(
                             if (selected) IosActiveBlue else Color.Transparent
                         )
                         .clickable(enabled = enabled) { onProtocolSelected(proto) }
-                        .padding(vertical = 10.dp)
+                        .padding(vertical = (6 * scaleFactor).dp)
                         .graphicsLayer { alpha = if (enabled || selected) 1f else 0.5f }
                         .testTag("protocol_${proto.rawValue}"),
                     contentAlignment = Alignment.Center
@@ -634,7 +733,8 @@ fun IosProtocolSegmentedControl(
                         text = proto.displayName.split(" ")[0].uppercase(),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selected) Color.White else IosSecondaryLabel
+                        color = if (selected) Color.White else IosSecondaryLabel,
+                        fontSize = (10 * scaleFactor).sp
                     )
                 }
             }

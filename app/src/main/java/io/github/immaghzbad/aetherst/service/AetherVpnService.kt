@@ -15,6 +15,7 @@ import io.github.immaghzbad.aetherst.MainActivity
 import io.github.immaghzbad.aetherst.core.AetherProcessRunner
 import io.github.immaghzbad.aetherst.core.HevTun2SocksEngine
 import io.github.immaghzbad.aetherst.core.HevTun2SocksNative
+import io.github.immaghzbad.aetherst.core.LocalSocksProxyServer
 import io.github.immaghzbad.aetherst.data.AetherConfigRepository
 import io.github.immaghzbad.aetherst.data.LogRepository
 import io.github.immaghzbad.aetherst.model.AetherConfig
@@ -43,10 +44,12 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+@Suppress("VpnServicePolicy")
 class AetherVpnService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var runner: AetherProcessRunner? = null
     private var hevEngine: HevTun2SocksEngine? = null
+    private var bridge: LocalSocksProxyServer? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val stateMutex = Mutex()
     private val attemptCounter = AtomicLong(0)
@@ -149,7 +152,7 @@ class AetherVpnService : VpnService() {
                     }
                 }
                 ConnectionState.RECONNECTING -> {
-                    if (current == ConnectionState.CONNECTED) {
+                    if (current == ConnectionState.CONNECTED || current == ConnectionState.VALIDATING || current == ConnectionState.SCANNING) {
                         setStateLocked(attemptId, ConnectionState.RECONNECTING)
                         stopTimer()
                         resetSessionTraffic()
@@ -193,9 +196,10 @@ class AetherVpnService : VpnService() {
             }
 
             val config = AetherConfigRepository.getInstance(this@AetherVpnService).config.value
+            val bindAddress = getBindAddress(config)
             try {
-                LogRepository.i("[Core] [attempt=$attemptId] Starting")
-                runner?.start(config)
+                LogRepository.i("[Core] [attempt=$attemptId] Starting at $bindAddress")
+                runner?.start(config, bindAddress)
 
                 val coreReady = withTimeoutOrNull(30.seconds) {
                     runner?.connectionState?.first { it == ConnectionState.CONNECTED }
@@ -208,6 +212,7 @@ class AetherVpnService : VpnService() {
 
                 if (!config.proxyOnly) {
                     publishState(attemptId, ConnectionState.VALIDATING)
+
                     if (!probeSocks5WithRetry(config, attemptId)) throw IllegalStateException("SOCKS5 readiness timed out")
                     ensureCurrentAttempt(attemptId)
                     LogRepository.i("[SocksProbe] [attempt=$attemptId] Handshake succeeded")
@@ -215,11 +220,20 @@ class AetherVpnService : VpnService() {
                     if (!establishVpnTun(attemptId)) throw IllegalStateException("TUN establishment failed")
                     ensureCurrentAttempt(attemptId)
 
+                    bridge = LocalSocksProxyServer(
+                        vpnService = this@AetherVpnService,
+                        listenHost = "198.18.0.1",
+                        listenPort = 1819,
+                        targetHost = config.socksHost,
+                        targetPort = config.socksPort.toIntOrNull() ?: 1819
+                    )
+                    bridge?.start()
+
                     val descriptor = vpnInterface ?: throw IllegalStateException("TUN descriptor unavailable")
                     val started = hevEngine?.start(
                         descriptor,
-                        getSocksHost(config),
-                        getSocksPort(config),
+                        "198.18.0.1",
+                        1819,
                         1280,
                         attemptId
                     ) == true
@@ -278,8 +292,9 @@ class AetherVpnService : VpnService() {
 
     private fun probeSocks5Once(config: AetherConfig): Boolean = runCatching {
         Socket().use { socket ->
+            protect(socket)
             socket.soTimeout = 750
-            socket.connect(InetSocketAddress(getSocksHost(config), getSocksPort(config)), 750)
+            socket.connect(InetSocketAddress(config.socksHost, config.socksPort.toIntOrNull() ?: 1819), 750)
             socket.getOutputStream().apply {
                 write(byteArrayOf(5, 1, 0))
                 flush()
@@ -295,9 +310,9 @@ class AetherVpnService : VpnService() {
         }
     }.getOrDefault(false)
 
-    private fun getSocksHost(config: AetherConfig): String = config.socksAddress.substringBefore(":").ifBlank { "127.0.0.1" }
-
-    private fun getSocksPort(config: AetherConfig): Int = config.socksAddress.substringAfter(":", "1819").toIntOrNull() ?: 1819
+    private fun getBindAddress(config: AetherConfig): String {
+        return "${config.socksHost}:${config.socksPort}"
+    }
 
     private fun establishVpnTun(attemptId: Long): Boolean = runCatching {
         val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -310,6 +325,11 @@ class AetherVpnService : VpnService() {
             .setMtu(1280)
             .setSession("AetherST Tunnel")
             .setConfigureIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), pendingFlags))
+        
+        val config = AetherConfigRepository.getInstance(this).config.value
+        config.excludedPackages.forEach { pkg ->
+            runCatching { builder.addDisallowedApplication(pkg) }
+        }
         builder.addDisallowedApplication(packageName)
         vpnInterface = builder.establish() ?: return false
         LogRepository.i("[Tun] [attempt=$attemptId] Established mtu=1280")
@@ -337,6 +357,8 @@ class AetherVpnService : VpnService() {
         stopTimer()
         resetSessionTraffic()
         hevEngine?.stopAndAwait()
+        bridge?.stop()
+        bridge = null
         closeVpnInterface(attemptId)
         runner?.stop()
         stateMutex.withLock {
@@ -364,6 +386,8 @@ class AetherVpnService : VpnService() {
             resetSessionTraffic()
             LogRepository.i("[Hev] [attempt=$attemptId] Stop requested")
             hevEngine?.stopAndAwait()
+            bridge?.stop()
+            bridge = null
             closeVpnInterface(attemptId)
             runner?.stop()
             stateMutex.withLock {
@@ -448,6 +472,7 @@ class AetherVpnService : VpnService() {
     }
 
     private fun updateNotification() {
+        if (_serviceState.value == ConnectionState.DISCONNECTED) return
         val text = when (_serviceState.value) {
             ConnectionState.CONNECTED -> "Full-device VPN connected"
             ConnectionState.SCANNING -> "Scanning..."
@@ -455,7 +480,7 @@ class AetherVpnService : VpnService() {
             ConnectionState.RECONNECTING -> "Reconnecting..."
             ConnectionState.DISCONNECTING -> "Disconnecting..."
             ConnectionState.ERROR -> "Connection error"
-            ConnectionState.DISCONNECTED -> "Standby"
+            ConnectionState.DISCONNECTED -> ""
         }
         runCatching {
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager

@@ -4,9 +4,13 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -23,7 +27,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
@@ -33,8 +53,16 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -48,8 +76,12 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.immaghzbad.aetherst.model.OnboardingStep
 import io.github.immaghzbad.aetherst.ui.AetherViewModel
 import io.github.immaghzbad.aetherst.ui.OnboardingViewModel
 import kotlin.math.roundToInt
@@ -70,10 +102,16 @@ private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (
     else -> null
 }
 
+private fun Context.isIgnoringBatteryOptimizations(): Boolean {
+    val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+    return powerManager?.isIgnoringBatteryOptimizations(packageName) ?: true
+}
+
 @Composable
 fun MainScreen(viewModel: AetherViewModel) {
     val context = LocalContext.current
     val activity = context.findComponentActivity()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val onboardingViewModel: OnboardingViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -85,6 +123,20 @@ fun MainScreen(viewModel: AetherViewModel) {
 
     val isOnboardingComplete by viewModel.isOnboardingComplete.collectAsStateWithLifecycle()
     val onboardingState by onboardingViewModel.state.collectAsStateWithLifecycle()
+    val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+    val currentStep by rememberUpdatedState(onboardingState.currentStep)
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (currentStep == OnboardingStep.BATTERY_OPTIMIZATION && context.isIgnoringBatteryOptimizations()) {
+                    onboardingViewModel.moveToNextStep()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     SideEffect {
         activity?.enableEdgeToEdge(
@@ -103,8 +155,12 @@ fun MainScreen(viewModel: AetherViewModel) {
                 onboardingViewModel.moveToNextStep()
             }
         }
-        val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
-            onboardingViewModel.moveToNextStep()
+        val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                onboardingViewModel.moveToNextStep()
+            } else {
+                onboardingViewModel.showNotificationError()
+            }
         }
 
         OnboardingScreen(
@@ -124,8 +180,35 @@ fun MainScreen(viewModel: AetherViewModel) {
                     onboardingViewModel.moveToNextStep()
                 }
             },
+            onRequestBatteryOptimization = {
+                if (context.isIgnoringBatteryOptimizations()) {
+                    onboardingViewModel.moveToNextStep()
+                } else {
+                    runCatching {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                    }.onFailure {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        context.startActivity(intent)
+                    }
+                }
+            },
             onFinish = onboardingViewModel::moveToNextStep
         )
+        return
+    }
+
+    if (updateInfo != null) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val scaleFactor = (this.maxWidth.value / 411f).coerceIn(0.7f, 1.1f)
+            UpdateScreen(
+                info = updateInfo!!,
+                onDismiss = { viewModel.dismissUpdate() },
+                scaleFactor = scaleFactor
+            )
+        }
         return
     }
 
@@ -136,12 +219,15 @@ fun MainScreen(viewModel: AetherViewModel) {
 private fun DashboardContent(viewModel: AetherViewModel) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
+    var showSplitTunneling by remember { mutableStateOf(false) }
+    
     val config by viewModel.config.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val elapsedSeconds by viewModel.elapsedSeconds.collectAsStateWithLifecycle()
     val sessionTraffic by viewModel.sessionTraffic.collectAsStateWithLifecycle()
     val ipInfo by viewModel.ipInfo.collectAsStateWithLifecycle()
     val pingState by viewModel.pingState.collectAsStateWithLifecycle()
+    val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
 
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -175,9 +261,12 @@ private fun DashboardContent(viewModel: AetherViewModel) {
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val saveableStateHolder = rememberSaveableStateHolder()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenWidth = this.maxWidth
+        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
+
         Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            Crossfade(targetState = selectedTab, animationSpec = tween(400), label = "screen_transition") { tab ->
+            Crossfade(targetState = if (showSplitTunneling) 99 else selectedTab, animationSpec = tween(400), label = "screen_transition") { tab ->
                 saveableStateHolder.SaveableStateProvider(tab) {
                     when (tab) {
                         0 -> DashboardScreen(
@@ -200,15 +289,25 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                                 viewModel.applyPreset(preset)
                                 Toast.makeText(context, "Applied preset profile!", Toast.LENGTH_SHORT).show()
                             },
+                            onOpenSplitTunneling = { showSplitTunneling = true },
                             bottomContentPadding = BarContentHeight + navBarHeight
                         )
                         2 -> LogsScreen(viewModel = viewModel, bottomContentPadding = BarContentHeight + navBarHeight)
                         3 -> AboutUsScreen(bottomContentPadding = BarContentHeight + navBarHeight)
+                        99 -> SplitTunnelingScreen(
+                            apps = installedApps,
+                            excludedPackages = config.excludedPackages,
+                            onToggleApp = { viewModel.toggleExcludedPackage(it) },
+                            onBack = { showSplitTunneling = false },
+                            scaleFactor = scaleFactor
+                        )
                     }
                 }
             }
         }
-        CurvedNavBar(selectedTab = selectedTab, navBarHeight = navBarHeight, onTabSelected = { selectedTab = it }, modifier = Modifier.align(Alignment.BottomCenter))
+        if (!showSplitTunneling) {
+            CurvedNavBar(selectedTab = selectedTab, navBarHeight = navBarHeight, onTabSelected = { selectedTab = it }, modifier = Modifier.align(Alignment.BottomCenter))
+        }
     }
 }
 
@@ -219,51 +318,63 @@ private fun CurvedNavBar(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tabs = listOf("Dashboard" to Icons.Default.Dashboard, "Settings" to Icons.Default.Settings, "Logs" to Icons.Default.Code, "About" to Icons.Default.Info)
-    val tabCount = tabs.size
-    var barWidthPx by remember { mutableIntStateOf(0) }
-    val indicatorOffset by animateFloatAsState(targetValue = selectedTab.toFloat(), animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "indicatorOffset")
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val screenWidth = this.maxWidth
+        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
+        
+        val scaledBarHeight = (BarContentHeight.value * scaleFactor).dp
+        val scaledButtonSize = (ButtonSize.value * scaleFactor).dp
+        val scaledButtonCenterY = (ButtonCenterY.value * scaleFactor).dp
+        val scaledCircleGap = (CircleGap.value * scaleFactor).dp
+        val scaledBarTopY = (BarTopY.value * scaleFactor).dp
+        val scaledItemBottomPadding = (ItemBottomPadding.value * scaleFactor).dp
 
-    Box(modifier = modifier.fillMaxWidth().height(BarContentHeight + navBarHeight).onSizeChanged { barWidthPx = it.width }) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val tabWidth = size.width / tabCount
-            val centerX = (indicatorOffset * tabWidth) + (tabWidth / 2)
-            val barTop = BarTopY.toPx()
-            val notchBottom = ButtonCenterY.toPx() + (ButtonSize.toPx() / 2f) + CircleGap.toPx()
-            val shoulderWidth = 50.dp.toPx()
-            val barShape = Path().apply {
-                moveTo(0f, barTop); lineTo(centerX - shoulderWidth, barTop)
-                cubicTo(centerX - 43.dp.toPx(), barTop, centerX - 40.dp.toPx(), barTop + 3.dp.toPx(), centerX - 37.dp.toPx(), barTop + 11.dp.toPx())
-                cubicTo(centerX - 31.dp.toPx(), barTop + 28.dp.toPx(), centerX - 21.dp.toPx(), notchBottom, centerX, notchBottom)
-                cubicTo(centerX + 21.dp.toPx(), notchBottom, centerX + 31.dp.toPx(), barTop + 28.dp.toPx(), centerX + 37.dp.toPx(), barTop + 11.dp.toPx())
-                cubicTo(centerX + 40.dp.toPx(), barTop + 3.dp.toPx(), centerX + 43.dp.toPx(), barTop, centerX + shoulderWidth, barTop)
-                lineTo(size.width, barTop); lineTo(size.width, size.height); lineTo(0f, size.height); close()
+        val tabs = listOf("Dashboard" to Icons.Default.Dashboard, "Settings" to Icons.Default.Settings, "Logs" to Icons.Default.Code, "About" to Icons.Default.Info)
+        val tabCount = tabs.size
+        var barWidthPx by remember { mutableIntStateOf(0) }
+        val indicatorOffset by animateFloatAsState(targetValue = selectedTab.toFloat(), animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "indicatorOffset")
+
+        Box(modifier = Modifier.fillMaxWidth().height(scaledBarHeight + navBarHeight).onSizeChanged { barWidthPx = it.width }) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val tabWidth = size.width / tabCount
+                val centerX = (indicatorOffset * tabWidth) + (tabWidth / 2)
+                val barTop = scaledBarTopY.toPx()
+                val notchBottom = scaledButtonCenterY.toPx() + (scaledButtonSize.toPx() / 2f) + scaledCircleGap.toPx()
+                val shoulderWidth = (50.dp.toPx() * scaleFactor)
+                val barShape = Path().apply {
+                    moveTo(0f, barTop); lineTo(centerX - shoulderWidth, barTop)
+                    cubicTo(centerX - (43.dp.toPx() * scaleFactor), barTop, centerX - (40.dp.toPx() * scaleFactor), barTop + (3.dp.toPx() * scaleFactor), centerX - (37.dp.toPx() * scaleFactor), barTop + (11.dp.toPx() * scaleFactor))
+                    cubicTo(centerX - (31.dp.toPx() * scaleFactor), barTop + (28.dp.toPx() * scaleFactor), centerX - (21.dp.toPx() * scaleFactor), notchBottom, centerX, notchBottom)
+                    cubicTo(centerX + (21.dp.toPx() * scaleFactor), notchBottom, centerX + (31.dp.toPx() * scaleFactor), barTop + (28.dp.toPx() * scaleFactor), centerX + (37.dp.toPx() * scaleFactor), barTop + (11.dp.toPx() * scaleFactor))
+                    cubicTo(centerX + (40.dp.toPx() * scaleFactor), barTop + (3.dp.toPx() * scaleFactor), centerX + (43.dp.toPx() * scaleFactor), barTop, centerX + shoulderWidth, barTop)
+                    lineTo(size.width, barTop); lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                }
+                drawPath(path = barShape, color = IosNavBackground.copy(alpha = 0.86f), style = Fill)
             }
-            drawPath(path = barShape, color = IosNavBackground.copy(alpha = 0.86f), style = Fill)
-        }
-        Box(
-            modifier = Modifier
-                .size(ButtonSize + (CircleGap * 2))
-                .offset {
-            val tabWidth = barWidthPx.toFloat() / tabCount
-            val outerSize = ButtonSize.toPx() + CircleGap.toPx() * 2f
-            IntOffset((indicatorOffset * tabWidth + (tabWidth / 2) - (outerSize / 2f)).roundToInt(), (ButtonCenterY.toPx() - outerSize / 2f).roundToInt())
-        }, contentAlignment = Alignment.Center) {
-            Box(modifier = Modifier.size(ButtonSize).shadow(12.dp, CircleShape, spotColor = IosNavActiveBlue).background(IosNavActiveBlue, CircleShape).border(2.dp, Color.White.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(imageVector = tabs[selectedTab].second, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+            Box(
+                modifier = Modifier
+                    .size(scaledButtonSize + (scaledCircleGap * 2))
+                    .offset {
+                        val tabWidth = barWidthPx.toFloat() / tabCount
+                        val outerSize = scaledButtonSize.toPx() + scaledCircleGap.toPx() * 2f
+                        IntOffset((indicatorOffset * tabWidth + (tabWidth / 2) - (outerSize / 2f)).roundToInt(), (scaledButtonCenterY.toPx() - outerSize / 2f).roundToInt())
+                    }, contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(scaledButtonSize).shadow((12 * scaleFactor).dp, CircleShape, spotColor = IosNavActiveBlue).background(IosNavActiveBlue, CircleShape).border(2.dp, Color.White.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(imageVector = tabs[selectedTab].second, contentDescription = null, tint = Color.White, modifier = Modifier.size((28 * scaleFactor).dp))
+                }
             }
-        }
-        Row(modifier = Modifier.fillMaxWidth().height(BarContentHeight).align(Alignment.TopStart), verticalAlignment = Alignment.Bottom) {
-            tabs.forEachIndexed { index, (label, icon) ->
-                val isSelected = selectedTab == index
-                Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }.padding(bottom = ItemBottomPadding), contentAlignment = Alignment.BottomCenter) {
-                    if (isSelected) {
-                        Text(text = label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = IosNavActiveBlue)
-                    } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                            Icon(imageVector = icon, contentDescription = label, tint = IosNavInactiveGrey, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(text = label, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp, color = IosNavInactiveGrey)
+            Row(modifier = Modifier.fillMaxWidth().height(scaledBarHeight).align(Alignment.TopStart), verticalAlignment = Alignment.Bottom) {
+                tabs.forEachIndexed { index, (label, icon) ->
+                    val isSelected = selectedTab == index
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }.padding(bottom = scaledItemBottomPadding), contentAlignment = Alignment.BottomCenter) {
+                        if (isSelected) {
+                            Text(text = label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = (10 * scaleFactor).sp, color = IosNavActiveBlue)
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                                Icon(imageVector = icon, contentDescription = label, tint = IosNavInactiveGrey, modifier = Modifier.size((24 * scaleFactor).dp))
+                                Spacer(modifier = Modifier.height((6 * scaleFactor).dp))
+                                Text(text = label, style = MaterialTheme.typography.labelSmall, fontSize = (10 * scaleFactor).sp, color = IosNavInactiveGrey)
+                            }
                         }
                     }
                 }

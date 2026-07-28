@@ -19,17 +19,14 @@ object PingRepository {
     private val _pingState = MutableStateFlow(PingState())
     val pingState: StateFlow<PingState> = _pingState.asStateFlow()
 
-    suspend fun runPing(socksAddress: String = "127.0.0.1:1819", useProxy: Boolean = true) {
+    suspend fun runPing(socksHost: String = "127.0.0.1", socksPort: Int = 1819, useProxy: Boolean = true) {
         _pingState.value = _pingState.value.copy(isPinging = true, error = null)
 
         withContext(Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
             try {
                 val socket = if (useProxy) {
-                    val parts = socksAddress.split(":")
-                    val host = if (parts.isNotEmpty()) parts[0] else "127.0.0.1"
-                    val port = if (parts.size > 1) parts[1].toIntOrNull() ?: 1819 else 1819
-                    val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(host, port))
+                    val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(socksHost, socksPort))
                     Socket(proxy)
                 } else {
                     Socket()

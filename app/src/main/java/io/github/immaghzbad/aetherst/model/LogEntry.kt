@@ -11,11 +11,11 @@ enum class LogLevel {
     DEBUG
 }
 
-private val idGenerator = AtomicLong(1)
+val logIdGenerator = AtomicLong(1)
 
 @JsonClass(generateAdapter = true)
 data class LogEntry(
-    val id: Long = idGenerator.getAndIncrement(),
+    val id: Long = logIdGenerator.getAndIncrement(),
     val timestamp: String,
     val level: LogLevel,
     val tag: String = "AetherCore",
