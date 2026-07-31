@@ -15,8 +15,6 @@ enum class ProtocolTestStatus {
     PREPARING,
     REGISTERING,
     IDENTITY_READY,
-    SCANNING,
-    VALIDATING,
     CONNECTED,
     FAILED,
     TIMED_OUT,

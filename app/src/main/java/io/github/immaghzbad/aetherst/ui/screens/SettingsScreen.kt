@@ -8,54 +8,19 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Http
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.NetworkCheck
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.VpnLock
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.Rule
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,15 +34,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.immaghzbad.aetherst.model.AetherConfig
-import io.github.immaghzbad.aetherst.model.AetherIpMode
-import io.github.immaghzbad.aetherst.model.AetherLogLevel
-import io.github.immaghzbad.aetherst.model.AetherNoise
-import io.github.immaghzbad.aetherst.model.AetherProtocol
-import io.github.immaghzbad.aetherst.model.AetherScanMode
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import io.github.immaghzbad.aetherst.model.*
 
 private val IosCardBackground = Color(0xFF1C1C1E)
 private val IosGroupBackground = Color(0xFF2C2C2E)
@@ -90,12 +53,32 @@ private val IosInactiveSwitchTrack = Color(0xFF3A3A3C)
 @Composable
 fun SettingsScreen(
     config: AetherConfig,
+    isBatteryOptimized: Boolean,
+    scrollToSection: Boolean = false,
+    onSectionScrolled: () -> Unit = {},
     onUpdateConfig: (AetherConfig) -> Unit,
+    onUpdateTunnelEngine: (TunnelEngine) -> Unit,
     onApplyPreset: (String) -> Unit,
     onOpenSplitTunneling: () -> Unit,
-    bottomContentPadding: Dp = 0.dp
+    onOpenRoutingRules: () -> Unit,
+    onRequestBatteryOptimization: () -> Unit,
+    onResetAll: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: (android.net.Uri) -> Unit,
+    onOptimizeMtu: () -> Unit,
+    isOptimizingMtu: Boolean = false,
+    onShowToast: (String, Boolean) -> Unit = { _, _ -> },
+    bottomContentPadding: Dp = 0.dp,
 ) {
     val focusManager = LocalFocusManager.current
+    var searchQuery by remember { mutableStateOf("") }
+    var showAdvancedZeroTrust by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    
+    val fullBackupPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+    ) { uri -> uri?.let { onImportBackup(it) } }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -108,8 +91,17 @@ fun SettingsScreen(
         val screenWidth = this.maxWidth
         val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
         val horizontalPadding = if (screenWidth < 360.dp) 10.dp else 16.dp
+        val lazyListState = rememberLazyListState()
+
+        LaunchedEffect(scrollToSection) {
+            if (scrollToSection) {
+                lazyListState.animateScrollToItem(2)
+                onSectionScrolled()
+            }
+        }
 
         LazyColumn(
+            state = lazyListState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = horizontalPadding,
@@ -138,425 +130,842 @@ fun SettingsScreen(
             }
 
             item {
-                IosSectionHeader(title = "PRESET CONFIGURATION PROFILES", scaleFactor = scaleFactor)
-                IosGroupCard {
-                    Column {
-                        IosPresetItem(
-                            icon = Icons.Default.Tune,
-                            iconBg = Color(0xFF8E8E93),
-                            title = "Custom Manual Tweaks",
-                            subtitle = "Your own independent manual configuration",
-                            isActive = config.presetId == "custom",
-                            onClick = { onApplyPreset("custom") },
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosPresetItem(
-                            icon = Icons.Default.Lock,
-                            iconBg = Color(0xFF5856D6),
-                            title = "Bypass UDP / TLS",
-                            subtitle = "MASQUE + H2 Fallback + Packet Fragmentation",
-                            isActive = config.presetId == "bypass_udp",
-                            onClick = { onApplyPreset("bypass_udp") },
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosPresetItem(
-                            icon = Icons.Default.Shield,
-                            iconBg = Color(0xFF007AFF),
-                            title = "Ironclad Stealth",
-                            subtitle = "MASQUE + GFW Noise + Ironclad Probe Scan",
-                            isActive = config.presetId == "ironclad_stealth",
-                            onClick = { onApplyPreset("ironclad_stealth") },
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosPresetItem(
-                            icon = Icons.Default.Bolt,
-                            iconBg = Color(0xFFFF9500),
-                            title = "Turbo Speed",
-                            subtitle = "WireGuard + Balanced Noise + Turbo Scan",
-                            isActive = config.presetId == "turbo_wg",
-                            onClick = { onApplyPreset("turbo_wg") },
-                            scaleFactor = scaleFactor
-                        )
-                    }
-                }
-            }
-
-            item {
-                IosSectionHeader(title = "CORE TRANSPORT & ENGINE", scaleFactor = scaleFactor)
-                IosGroupCard {
-                    Column {
-                        IosPickerRow(
-                            icon = Icons.Default.VpnLock,
-                            iconBg = Color(0xFF007AFF),
-                            title = "Transport Protocol",
-                            value = config.protocol.displayName,
-                            options = AetherProtocol.entries.map { it.displayName },
-                            onOptionSelected = { index ->
-                                onUpdateConfig(config.copy(protocol = AetherProtocol.entries[index]))
-                            },
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        val availableNoise = if (config.protocol == AetherProtocol.MASQUE) {
-                            listOf(AetherNoise.FIREWALL, AetherNoise.GFW, AetherNoise.OFF)
-                        } else {
-                            listOf(AetherNoise.BALANCED, AetherNoise.AGGRESSIVE, AetherNoise.LIGHT, AetherNoise.OFF)
-                        }
-
-                        IosPickerRow(
-                            icon = Icons.Default.Tune,
-                            iconBg = Color(0xFFAF52DE),
-                            title = "Noise Obfuscation",
-                            value = config.noise.displayName.substringBefore(" ("),
-                            options = availableNoise.map { it.displayName },
-                            onOptionSelected = { index ->
-                                onUpdateConfig(config.copy(noise = availableNoise[index]))
-                            },
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosPickerRow(
-                            icon = Icons.Default.NetworkCheck,
-                            iconBg = Color(0xFFFF9500),
-                            title = "Scan Strategy",
-                            value = config.scanMode.displayName,
-                            options = AetherScanMode.entries.map { "${it.displayName} (${it.description})" },
-                            onOptionSelected = { index ->
-                                onUpdateConfig(config.copy(scanMode = AetherScanMode.entries[index]))
-                            },
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosPickerRow(
-                            icon = Icons.AutoMirrored.Filled.AltRoute,
-                            iconBg = Color(0xFF5856D6),
-                            title = "IP Stack Mode",
-                            value = config.ipMode.rawValue,
-                            options = AetherIpMode.entries.map { it.displayName },
-                            onOptionSelected = { index ->
-                                onUpdateConfig(config.copy(ipMode = AetherIpMode.entries[index]))
-                            },
-                            scaleFactor = scaleFactor
-                        )
-                    }
-                }
-            }
-
-            item {
-                IosSectionHeader(title = "DPI BYPASS & MASQUE TWEAKS", scaleFactor = scaleFactor)
-                IosGroupCard {
-                    Column {
-                        IosSwitchRow(
-                            icon = Icons.Default.Http,
-                            iconBg = Color(0xFF32ADE6),
-                            title = "HTTP/2 Fallback Mode",
-                            subtitle = "Use H2 over TCP when QUIC/UDP is throttled",
-                            checked = config.h2Mode,
-                            onCheckedChange = { onUpdateConfig(config.copy(h2Mode = it)) },
-                            testTag = "switch_h2_mode",
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosSwitchRow(
-                            icon = Icons.Default.Security,
-                            iconBg = Color(0xFFFF2D55),
-                            title = "ClientHello Fragmentation",
-                            subtitle = "Split ClientHello packet to bypass SNI inspection",
-                            checked = config.h2Fragment,
-                            onCheckedChange = { onUpdateConfig(config.copy(h2Fragment = it)) },
-                            testTag = "switch_h2_fragment",
-                            scaleFactor = scaleFactor
-                        )
-
-                        AnimatedVisibility(
-                            visible = config.h2Fragment,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((44 * scaleFactor).dp)
+                        .background(IosCardBackground, RoundedCornerShape(12.dp)),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White, fontSize = (14 * scaleFactor).sp),
+                    singleLine = true,
+                    cursorBrush = SolidColor(IosActiveBlue),
+                    decorationBox = { innerTextField ->
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(IosGroupBackground.copy(alpha = 0.4f))
-                                    .padding((14 * scaleFactor).dp),
-                                verticalArrangement = Arrangement.spacedBy((8 * scaleFactor).dp)
-                            ) {
-                                IosInputField(
-                                    label = "Fragment Size Range (bytes)",
-                                    value = config.fragmentSize,
-                                    onValueChange = { onUpdateConfig(config.copy(fragmentSize = it)) },
-                                    placeholder = "e.g. 16-32",
-                                    testTag = "fragment_size_input",
-                                    scaleFactor = scaleFactor
-                                )
-
-                                IosInputField(
-                                    label = "Fragment Delay Range (ms)",
-                                    value = config.fragmentDelay,
-                                    onValueChange = { onUpdateConfig(config.copy(fragmentDelay = it)) },
-                                    placeholder = "e.g. 2-10",
-                                    keyboardType = KeyboardType.Number,
-                                    testTag = "fragment_delay_input",
-                                    scaleFactor = scaleFactor
-                                )
+                            Icon(Icons.Default.Search, null, tint = IosSecondaryLabel, modifier = Modifier.size((20 * scaleFactor).dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (searchQuery.isEmpty()) {
+                                    Text("Search settings...", color = IosSecondaryLabel, fontSize = (13 * scaleFactor).sp)
+                                }
+                                innerTextField()
                             }
                         }
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosSwitchRow(
-                            icon = Icons.Default.FlashOn,
-                            iconBg = Color(0xFFFFCC00),
-                            title = "Skip Gateway Data Check",
-                            subtitle = "Bypass verification probe for rapid connection",
-                            checked = config.noDataCheck,
-                            onCheckedChange = { onUpdateConfig(config.copy(noDataCheck = it)) },
-                            testTag = "switch_no_data_check",
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosInputFieldRow(
-                            icon = Icons.Default.Lock,
-                            iconBg = Color(0xFF8E8E93),
-                            label = "Custom TLS Groups",
-                            value = config.tlsGroups,
-                            onValueChange = { onUpdateConfig(config.copy(tlsGroups = it)) },
-                            placeholder = "e.g. P-256:X25519",
-                            testTag = "tls_groups_input",
-                            scaleFactor = scaleFactor
-                        )
                     }
-                }
-            }
-
-            item {
-                IosSectionHeader(title = "SOCKS & SESSION RECONNECT", scaleFactor = scaleFactor)
-                IosGroupCard {
-                    Column {
-                        IosSwitchRow(
-                            icon = Icons.Default.Storage,
-                            iconBg = Color(0xFF30D158),
-                            title = "Quick Gateway Reconnect",
-                            subtitle = "Reuse fast active gateway cache on launch",
-                            checked = config.quickReconnect,
-                            onCheckedChange = { onUpdateConfig(config.copy(quickReconnect = it)) },
-                            testTag = "switch_quick_reconnect",
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosPickerRow(
-                        icon = Icons.Default.VpnLock,
-                        iconBg = Color(0xFF5856D6),
-                        title = "Split Tunneling",
-                        value = "${config.excludedPackages.size} Apps",
-                        options = emptyList(),
-                        onOptionSelected = { },
-                        scaleFactor = scaleFactor,
-                        onClickOverride = onOpenSplitTunneling
-                    )
-
-                    HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                    IosSwitchRow(
-                        icon = Icons.Default.VpnLock,
-                        iconBg = Color(0xFF5856D6),
-                        title = "VPN Tunnel Mode",
-                        subtitle = "Route all phone traffic through Aether",
-                        checked = !config.proxyOnly,
-                        onCheckedChange = { 
-                            onUpdateConfig(config.copy(proxyOnly = !it))
-                        },
-                        testTag = "switch_proxy_only",
-                        scaleFactor = scaleFactor
-                    )
-
-                    HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IosIconBadge(icon = Icons.Default.Language, backgroundColor = Color(0xFF007AFF), scaleFactor = scaleFactor)
-                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
-                        IosInputField(
-                            label = "SOCKS5 Host",
-                            value = config.socksHost,
-                            onValueChange = { onUpdateConfig(config.copy(socksHost = it)) },
-                            modifier = Modifier.weight(1f),
-                            placeholder = "127.0.0.1",
-                            testTag = "socks_host_input",
-                            scaleFactor = scaleFactor
-                        )
-                        Spacer(modifier = Modifier.width((10 * scaleFactor).dp))
-                        IosInputField(
-                            label = "Port",
-                            value = config.socksPort,
-                            onValueChange = { onUpdateConfig(config.copy(socksPort = it)) },
-                            modifier = Modifier.width((80 * scaleFactor).dp),
-                            placeholder = "1819",
-                            keyboardType = KeyboardType.Number,
-                            testTag = "socks_port_input",
-                            scaleFactor = scaleFactor
-                        )
-                    }
-
-                    if (!config.proxyOnly && config.socksHost == "127.0.0.1") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = (50 * scaleFactor).dp, end = (16 * scaleFactor).dp, bottom = (12 * scaleFactor).dp)
-                                .background(Color(0xFFFF9500).copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                                .padding((8 * scaleFactor).dp)
-                        ) {
-                            Text(
-                                text = "Aether Core is active on 127.0.0.1. In Tunnel Mode, all other device traffic is automatically bridged via 198.18.0.1 for full compatibility.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFFF9500),
-                                fontSize = (11 * scaleFactor).sp,
-                                lineHeight = (15 * scaleFactor).sp
-                            )
-                        }
-                    }
-                    }
-                }
-            }
-
-            item {
-                IosSectionHeader(title = "ADVANCED TUNING", scaleFactor = scaleFactor)
-                IosGroupCard {
-                    Column {
-                        IosInputFieldRow(
-                            icon = Icons.AutoMirrored.Filled.AltRoute,
-                            iconBg = Color(0xFF5856D6),
-                            label = "Forced Peer IP (Optional)",
-                            value = config.peer,
-                            onValueChange = { onUpdateConfig(config.copy(peer = it)) },
-                            placeholder = "e.g. 1.2.3.4:443",
-                            testTag = "peer_input",
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosInputFieldRow(
-                            icon = Icons.Default.Bolt,
-                            iconBg = Color(0xFFFF9500),
-                            label = "WG Keepalive (Seconds)",
-                            value = config.keepalive.toString(),
-                            onValueChange = { onUpdateConfig(config.copy(keepalive = it.toIntOrNull() ?: 5)) },
-                            placeholder = "5",
-                            keyboardType = KeyboardType.Number,
-                            testTag = "keepalive_input",
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosInputFieldRow(
-                            icon = Icons.Default.Tune,
-                            iconBg = Color(0xFF34C759),
-                            label = "Custom MTU Size",
-                            value = config.mtu.toString(),
-                            onValueChange = { onUpdateConfig(config.copy(mtu = it.toIntOrNull() ?: 1100)) },
-                            placeholder = "1100",
-                            keyboardType = KeyboardType.Number,
-                            testTag = "mtu_input",
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosInputFieldRow(
-                            icon = Icons.Default.NetworkCheck,
-                            iconBg = Color(0xFF32ADE6),
-                            label = "Probe Validation Timeout (Secs)",
-                            value = config.validateSecs.toString(),
-                            onValueChange = { onUpdateConfig(config.copy(validateSecs = it.toIntOrNull() ?: 10)) },
-                            placeholder = "10",
-                            keyboardType = KeyboardType.Number,
-                            testTag = "validate_secs_input",
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosSwitchRow(
-                            icon = Icons.AutoMirrored.Filled.AltRoute,
-                            iconBg = Color(0xFF8E8E93),
-                            title = "No Profile Retry",
-                            subtitle = "Disable automatic noise profile switching",
-                            checked = config.noProfileRetry,
-                            onCheckedChange = { onUpdateConfig(config.copy(noProfileRetry = it)) },
-                            testTag = "switch_no_profile_retry",
-                            scaleFactor = scaleFactor
-                        )
-                    }
-                }
-            }
-
-            item {
-                IosSectionHeader(title = "DIAGNOSTICS & SYSTEM LOGS", scaleFactor = scaleFactor)
-                IosGroupCard {
-                    Column {
-                        IosPickerRow(
-                            icon = Icons.Default.BugReport,
-                            iconBg = Color(0xFF64D2FF),
-                            title = "App System Logging",
-                            value = config.appLogLevel.displayName.substringBefore(" ("),
-                            options = AetherLogLevel.entries.map { it.displayName },
-                            onOptionSelected = { index ->
-                                onUpdateConfig(config.copy(appLogLevel = AetherLogLevel.entries[index]))
-                            },
-                            scaleFactor = scaleFactor
-                        )
-
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-
-                        IosPickerRow(
-                            icon = Icons.Default.VpnLock,
-                            iconBg = Color(0xFF8E8E93),
-                            title = "Aether Core Logging",
-                            value = config.coreLogLevel.displayName.substringBefore(" ("),
-                            options = AetherLogLevel.entries.map { it.displayName },
-                            onOptionSelected = { index ->
-                                onUpdateConfig(config.copy(coreLogLevel = AetherLogLevel.entries[index]))
-                            },
-                            scaleFactor = scaleFactor
-                        )
-                    }
-                }
-                Text(
-                    text = "App logging is enabled by default to track UI states. Core logging is OFF to eliminate binary RAM & CPU overhead. Set Core to Info/Debug only for troubleshooting.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IosSecondaryLabel,
-                    modifier = Modifier.padding(start = 8.dp, top = 6.dp),
-                    fontSize = (10 * scaleFactor).sp
                 )
             }
 
+            if (searchQuery.isEmpty() || "Preset Profiles Custom Manual Tweaks Bypass UDP TLS Ironclad Stealth Turbo Speed".contains(searchQuery, ignoreCase = true)) {
+                item {
+                    IosSectionHeader(title = "PRESET CONFIGURATION PROFILES", scaleFactor = scaleFactor)
+                    IosGroupCard {
+                        Column {
+                            IosPresetItem(
+                                icon = Icons.Default.Tune,
+                                iconBg = Color(0xFF8E8E93),
+                                title = "Custom Manual Tweaks",
+                                subtitle = "Your own independent manual configuration",
+                                isActive = config.presetId == "custom",
+                                onClick = { 
+                                    onApplyPreset("custom")
+                                    onShowToast("Applied manual configuration", false)
+                                },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPresetItem(
+                                icon = Icons.Default.Lock,
+                                iconBg = Color(0xFF5856D6),
+                                title = "Bypass UDP / TLS",
+                                subtitle = "MASQUE + H2 Fallback + Packet Fragmentation",
+                                isActive = config.presetId == "bypass_udp",
+                                onClick = { 
+                                    onApplyPreset("bypass_udp")
+                                    onShowToast("Applied UDP/TLS Bypass preset", false)
+                                },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPresetItem(
+                                icon = Icons.Default.Shield,
+                                iconBg = Color(0xFF007AFF),
+                                title = "Ironclad Stealth",
+                                subtitle = "MASQUE + GFW Noise + Ironclad Probe Scan",
+                                isActive = config.presetId == "ironclad_stealth",
+                                onClick = { 
+                                    onApplyPreset("ironclad_stealth")
+                                    onShowToast("Applied Ironclad Stealth preset", false)
+                                },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPresetItem(
+                                icon = Icons.Default.Bolt,
+                                iconBg = Color(0xFFFF9500),
+                                title = "Turbo Speed",
+                                subtitle = "WireGuard + Balanced Noise + Turbo Scan",
+                                isActive = config.presetId == "turbo_wg",
+                                onClick = { 
+                                    onApplyPreset("turbo_wg")
+                                    onShowToast("Applied Turbo Speed preset", false)
+                                },
+                                scaleFactor = scaleFactor
+                            )
+                        }
+                    }
+                }
+            }
+
+            if ((config.protocol == AetherProtocol.ZERO_TRUST) && (searchQuery.isEmpty() || "Cloudflare Zero Trust Team Access Gateway ID Secret Token".contains(searchQuery, ignoreCase = true))) {
+                item {
+                    Column {
+                        IosSectionHeader(title = "CLOUDFLARE ZERO TRUST", scaleFactor = scaleFactor)
+                        IosGroupCard {
+                            Column {
+                                IosInputFieldRow(
+                                    icon = Icons.Default.Business,
+                                    iconBg = Color(0xFF5856D6),
+                                    label = "Organization Team Name",
+                                    value = config.teamName,
+                                    onValueChange = { onUpdateConfig(config.copy(teamName = it)) },
+                                    placeholder = "e.g. my-org",
+                                    testTag = "zt_team_input",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosInputFieldRow(
+                                    icon = Icons.Default.Language,
+                                    iconBg = Color(0xFF007AFF),
+                                    label = "Cloudflare Access Email",
+                                    value = config.accessEmail,
+                                    onValueChange = { onUpdateConfig(config.copy(accessEmail = it)) },
+                                    placeholder = "user@example.com",
+                                    testTag = "zt_email_input",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosSwitchRow(
+                                    icon = Icons.Default.Shield,
+                                    iconBg = Color(0xFF34C759),
+                                    title = "Gateway Filtering Proxy",
+                                    subtitle = "Route via org Gateway for filtering & logs",
+                                    checked = config.useGateway,
+                                    onCheckedChange = { onUpdateConfig(config.copy(useGateway = it)) },
+                                    testTag = "switch_zt_gateway",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showAdvancedZeroTrust = !showAdvancedZeroTrust }
+                                        .padding(horizontal = (16 * scaleFactor).dp, vertical = (14 * scaleFactor).dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IosIconBadge(icon = Icons.Default.Lock, backgroundColor = Color(0xFF8E8E93), scaleFactor = scaleFactor)
+                                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                        Text(
+                                            text = "Advanced Authentication",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White,
+                                            fontSize = (15 * scaleFactor).sp
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = if (showAdvancedZeroTrust) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = IosSecondaryLabel,
+                                        modifier = Modifier.size((18 * scaleFactor).dp)
+                                    )
+                                }
+
+                                AnimatedVisibility(
+                                    visible = showAdvancedZeroTrust,
+                                    enter = fadeIn() + expandVertically(),
+                                    exit = fadeOut() + shrinkVertically()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(IosGroupBackground.copy(alpha = 0.4f))
+                                            .padding((14 * scaleFactor).dp),
+                                        verticalArrangement = Arrangement.spacedBy((12 * scaleFactor).dp)
+                                    ) {
+                                        IosInputField(
+                                            label = "Access Client ID",
+                                            value = config.accessId,
+                                            onValueChange = { onUpdateConfig(config.copy(accessId = it)) },
+                                            placeholder = "Required for Service Tokens",
+                                            testTag = "zt_access_id",
+                                            scaleFactor = scaleFactor
+                                        )
+                                        IosInputField(
+                                            label = "Access Client Secret",
+                                            value = config.accessSecret,
+                                            onValueChange = { onUpdateConfig(config.copy(accessSecret = it)) },
+                                            placeholder = "Required for Service Tokens",
+                                            testTag = "zt_access_secret",
+                                            scaleFactor = scaleFactor
+                                        )
+                                        IosInputField(
+                                            label = "Manual JWT Access Token",
+                                            value = config.accessToken,
+                                            onValueChange = { onUpdateConfig(config.copy(accessToken = it)) },
+                                            placeholder = "Optional overrides auth",
+                                            testTag = "zt_access_token",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (searchQuery.isEmpty() || "Advanced Security Kill Switch IPv6 Leak Protection Smart Reconnect".contains(searchQuery, ignoreCase = true)) {
+                item {
+                    IosSectionHeader(title = "ADVANCED SECURITY & AUTO-RECOVERY", scaleFactor = scaleFactor)
+                    IosGroupCard {
+                        Column {
+                            IosSwitchRow(
+                                icon = Icons.Default.VpnLock,
+                                iconBg = Color(0xFF5856D6),
+                                title = "Strict Kill Switch",
+                                subtitle = "Prevent any leak even during manual stop",
+                                checked = config.strictKillSwitch,
+                                onCheckedChange = { onUpdateConfig(config.copy(strictKillSwitch = it)) },
+                                testTag = "switch_strict_kill_switch",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.Lock,
+                                iconBg = Color(0xFFFF3B30),
+                                title = "Kill Switch",
+                                subtitle = "Block traffic when VPN is disconnected",
+                                checked = config.killSwitch,
+                                onCheckedChange = { onUpdateConfig(config.copy(killSwitch = it)) },
+                                testTag = "switch_kill_switch",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.Security,
+                                iconBg = Color(0xFF5856D6),
+                                title = "IPv6 Leak Protection",
+                                subtitle = "Force all IPv6 traffic through tunnel",
+                                checked = config.ipv6Leak,
+                                onCheckedChange = { onUpdateConfig(config.copy(ipv6Leak = it)) },
+                                testTag = "switch_ipv6_leak",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.Restore,
+                                iconBg = Color(0xFF34C759),
+                                title = "Smart Reconnect",
+                                subtitle = "Attempt auto-recovery on network failure",
+                                checked = config.smartReconnect,
+                                onCheckedChange = { onUpdateConfig(config.copy(smartReconnect = it)) },
+                                testTag = "switch_smart_reconnect",
+                                scaleFactor = scaleFactor
+                            )
+                            if (config.smartReconnect) {
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        IosIconBadge(icon = Icons.Default.Repeat, backgroundColor = Color(0xFF8E8E93), scaleFactor = scaleFactor)
+                                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                        IosInputField(
+                                            label = "Max Retries",
+                                            value = config.reconnectRetryLimit.toString(),
+                                            onValueChange = { onUpdateConfig(config.copy(reconnectRetryLimit = it.toIntOrNull() ?: 10)) },
+                                            placeholder = "10",
+                                            keyboardType = KeyboardType.Number,
+                                            testTag = "reconnect_limit_input",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        IosInputField(
+                                            label = "Delay (Secs)",
+                                            value = config.reconnectSecs.toString(),
+                                            onValueChange = { onUpdateConfig(config.copy(reconnectSecs = it.toIntOrNull() ?: 2)) },
+                                            placeholder = "2",
+                                            keyboardType = KeyboardType.Number,
+                                            testTag = "reconnect_secs_input",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (searchQuery.isEmpty() || "Engine Transport Protocol Bypass Obfuscation Speed Strategy Network Stack Split Tunneling Domain Routing VPN Tunnel Mode SOCKS5 Host Port MTU Keepalive Peer".contains(searchQuery, ignoreCase = true)) {
+                item {
+                    IosSectionHeader(title = "CONNECTION & ROUTING", scaleFactor = scaleFactor)
+                    IosGroupCard {
+                        Column {
+                            IosPickerRow(
+                                icon = Icons.Default.VpnLock,
+                                iconBg = Color(0xFF5856D6),
+                                title = "Tunnel Engine",
+                                value = config.tunnelEngine.displayName,
+                                options = TunnelEngine.entries.map { it.displayName },
+                                onOptionSelected = { index -> onUpdateTunnelEngine(TunnelEngine.entries[index]) },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPickerRow(
+                                icon = Icons.Default.VpnLock,
+                                iconBg = Color(0xFF007AFF),
+                                title = "Transport Protocol",
+                                value = config.protocol.displayName,
+                                options = AetherProtocol.entries.map { it.displayName },
+                                onOptionSelected = { index -> onUpdateConfig(config.copy(protocol = AetherProtocol.entries[index])) },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            if (config.protocol == AetherProtocol.MASQUE) {
+                                IosSwitchRow(
+                                    icon = Icons.Default.Http,
+                                    iconBg = Color(0xFF007AFF),
+                                    title = "HTTP/2 Fallback Mode",
+                                    subtitle = "Force MASQUE over TCP/TLS instead of QUIC",
+                                    checked = config.h2Mode,
+                                    onCheckedChange = { onUpdateConfig(config.copy(h2Mode = it)) },
+                                    testTag = "switch_h2_mode",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosSwitchRow(
+                                    icon = Icons.Default.VerticalSplit,
+                                    iconBg = Color(0xFF5856D6),
+                                    title = "Packet Fragmentation",
+                                    subtitle = "Bypass SNI filters (H2 mode only)",
+                                    checked = config.h2Fragment,
+                                    onCheckedChange = { onUpdateConfig(config.copy(h2Fragment = it)) },
+                                    testTag = "switch_fragment",
+                                    scaleFactor = scaleFactor
+                                )
+                                AnimatedVisibility(visible = config.h2Fragment) {
+                                    Column(modifier = Modifier.background(IosGroupBackground.copy(alpha = 0.3f))) {
+                                        IosInputFieldRow(
+                                            icon = Icons.Default.Straighten,
+                                            iconBg = Color(0xFF8E8E93),
+                                            label = "Fragment Size (Bytes)",
+                                            value = config.fragmentSize,
+                                            onValueChange = { onUpdateConfig(config.copy(fragmentSize = it)) },
+                                            placeholder = "16-32",
+                                            testTag = "fragment_size_input",
+                                            scaleFactor = scaleFactor
+                                        )
+                                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                        IosInputFieldRow(
+                                            icon = Icons.Default.Timer,
+                                            iconBg = Color(0xFF8E8E93),
+                                            label = "Fragment Delay (ms)",
+                                            value = config.fragmentDelay,
+                                            onValueChange = { onUpdateConfig(config.copy(fragmentDelay = it)) },
+                                            placeholder = "2-10",
+                                            testTag = "fragment_delay_input",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                }
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            }
+                            IosSwitchRow(
+                                icon = Icons.AutoMirrored.Filled.Rule,
+                                iconBg = Color(0xFF8E8E93),
+                                title = "Skip Data Plane Check",
+                                subtitle = "Trust gateway after handshake only",
+                                checked = config.noDataCheck,
+                                onCheckedChange = { onUpdateConfig(config.copy(noDataCheck = it)) },
+                                testTag = "switch_no_data_check",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.FlashOn,
+                                iconBg = Color(0xFFFF9500),
+                                title = "Quick Gateway Reconnect",
+                                subtitle = "Reuse last working endpoint on start",
+                                checked = config.quickReconnect,
+                                onCheckedChange = { onUpdateConfig(config.copy(quickReconnect = it)) },
+                                testTag = "switch_quick_reconnect",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.Refresh,
+                                iconBg = Color(0xFF8E8E93),
+                                title = "No Profile Retry",
+                                subtitle = "Do not fallback to other noise profiles",
+                                checked = config.noProfileRetry,
+                                onCheckedChange = { onUpdateConfig(config.copy(noProfileRetry = it)) },
+                                testTag = "switch_no_profile_retry",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            val availableNoise = if (config.protocol == AetherProtocol.MASQUE) {
+                                listOf(AetherNoise.FIREWALL, AetherNoise.GFW, AetherNoise.OFF)
+                            } else {
+                                listOf(AetherNoise.BALANCED, AetherNoise.AGGRESSIVE, AetherNoise.LIGHT, AetherNoise.OFF)
+                            }
+                            IosPickerRow(
+                                icon = Icons.Default.Tune,
+                                iconBg = Color(0xFFAF52DE),
+                                title = "Bypass Obfuscation",
+                                value = config.noise.displayName.substringBefore(" ("),
+                                options = availableNoise.map { it.displayName },
+                                onOptionSelected = { index -> onUpdateConfig(config.copy(noise = availableNoise[index])) },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPickerRow(
+                                icon = Icons.Default.NetworkCheck,
+                                iconBg = Color(0xFFFF9500),
+                                title = "Speed Strategy",
+                                value = config.scanMode.name.lowercase().replaceFirstChar { it.uppercase() },
+                                options = AetherScanMode.entries.map { mode -> "${mode.name.lowercase().replaceFirstChar { it.uppercase() }} (${mode.description})" },
+                                onOptionSelected = { index -> onUpdateConfig(config.copy(scanMode = AetherScanMode.entries[index])) },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPickerRow(
+                                icon = Icons.AutoMirrored.Filled.AltRoute,
+                                iconBg = Color(0xFF5856D6),
+                                title = "Network Stack",
+                                value = config.ipMode.rawValue,
+                                options = AetherIpMode.entries.map { it.displayName },
+                                onOptionSelected = { index -> onUpdateConfig(config.copy(ipMode = AetherIpMode.entries[index])) },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPickerRow(
+                                icon = Icons.Default.Tune,
+                                iconBg = Color(0xFF5856D6),
+                                title = "App Split Tunneling",
+                                value = "${config.excludedPackages.size + config.blockedPackages.size} Apps",
+                                options = emptyList(),
+                                onOptionSelected = { },
+                                scaleFactor = scaleFactor,
+                                onClickOverride = onOpenSplitTunneling
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPickerRow(
+                                icon = Icons.AutoMirrored.Filled.AltRoute,
+                                iconBg = Color(0xFF007AFF),
+                                title = "Domain & IP Routing",
+                                value = "${config.routingRules.size} Rules",
+                                options = emptyList(),
+                                onOptionSelected = { },
+                                scaleFactor = scaleFactor,
+                                onClickOverride = onOpenRoutingRules
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.VpnLock,
+                                iconBg = Color(0xFF34C759),
+                                title = "Full VPN Tunnel",
+                                subtitle = "Enables global device-wide protection",
+                                checked = !config.proxyOnly,
+                                onCheckedChange = { onUpdateConfig(config.copy(proxyOnly = !it)) },
+                                testTag = "switch_proxy_only",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IosIconBadge(icon = Icons.Default.Language, backgroundColor = Color(0xFF007AFF), scaleFactor = scaleFactor)
+                                Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                IosInputField(
+                                    label = "SOCKS5 Host",
+                                    value = config.socksHost,
+                                    onValueChange = { onUpdateConfig(config.copy(socksHost = it)) },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = "127.0.0.1",
+                                    testTag = "socks_host_input",
+                                    scaleFactor = scaleFactor
+                                )
+                                Spacer(modifier = Modifier.width((10 * scaleFactor).dp))
+                                IosInputField(
+                                    label = "Port",
+                                    value = config.socksPort,
+                                    onValueChange = { onUpdateConfig(config.copy(socksPort = it)) },
+                                    modifier = Modifier.width((80 * scaleFactor).dp),
+                                    placeholder = "1819",
+                                    keyboardType = KeyboardType.Number,
+                                    testTag = "socks_port_input",
+                                    scaleFactor = scaleFactor
+                                )
+                            }
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.spacedBy((10 * scaleFactor).dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IosIconBadge(icon = Icons.Default.Tune, backgroundColor = Color(0xFF34C759), scaleFactor = scaleFactor)
+                                    Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                    IosInputField(
+                                        label = "Custom MTU Size",
+                                        value = config.mtu.toString(),
+                                        onValueChange = { onUpdateConfig(config.copy(mtu = it.toIntOrNull() ?: 1100)) },
+                                        modifier = Modifier.weight(1f),
+                                        placeholder = "1100",
+                                        keyboardType = KeyboardType.Number,
+                                        testTag = "mtu_input",
+                                        scaleFactor = scaleFactor
+                                    )
+                                }
+                                Button(
+                                    onClick = onOptimizeMtu,
+                                    enabled = !isOptimizingMtu,
+                                    modifier = Modifier.height((46 * scaleFactor).dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = IosActiveBlue.copy(alpha = 0.15f),
+                                        contentColor = IosActiveBlue,
+                                        disabledContainerColor = IosActiveBlue.copy(alpha = 0.05f),
+                                        disabledContentColor = IosActiveBlue.copy(alpha = 0.3f)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = (16 * scaleFactor).dp)
+                                ) {
+                                    if (isOptimizingMtu) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size((18 * scaleFactor).dp),
+                                            color = IosActiveBlue,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text("Optimize", fontSize = (13 * scaleFactor).sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                    IosIconBadge(icon = Icons.Default.Bolt, backgroundColor = Color(0xFFFF9500), scaleFactor = scaleFactor)
+                                    Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                    IosInputField(
+                                        label = "Keepalive (Secs)",
+                                        value = config.keepalive.toString(),
+                                        onValueChange = { onUpdateConfig(config.copy(keepalive = it.toIntOrNull() ?: 5)) },
+                                        placeholder = "5",
+                                        keyboardType = KeyboardType.Number,
+                                        testTag = "keepalive_input",
+                                        scaleFactor = scaleFactor
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                    IosInputField(
+                                        label = "Validation (Secs)",
+                                        value = config.validateSecs.toString(),
+                                        onValueChange = { onUpdateConfig(config.copy(validateSecs = it.toIntOrNull() ?: 10)) },
+                                        placeholder = "10",
+                                        keyboardType = KeyboardType.Number,
+                                        testTag = "validate_secs_input",
+                                        scaleFactor = scaleFactor
+                                    )
+                                }
+                            }
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosInputFieldRow(
+                                icon = Icons.Default.Code,
+                                iconBg = Color(0xFF8E8E93),
+                                label = "TLS Key Groups",
+                                value = config.tlsGroups,
+                                onValueChange = { onUpdateConfig(config.copy(tlsGroups = it)) },
+                                placeholder = "P-256:X25519:P-384",
+                                testTag = "tls_groups_input",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IosIconBadge(icon = Icons.Default.Dns, backgroundColor = Color(0xFF007AFF), scaleFactor = scaleFactor)
+                                    Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                    IosInputField(
+                                        label = "Tunnel DNS Servers",
+                                        value = config.dnsList,
+                                        onValueChange = { 
+                                            val cleaned = it.replace(Regex("\\s*,\\s*"), ",")
+                                            onUpdateConfig(config.copy(dnsList = cleaned)) 
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        placeholder = "1.1.1.1,1.0.0.1",
+                                        testTag = "dns_list_input",
+                                        scaleFactor = scaleFactor
+                                    )
+                                }
+                                Text(
+                                    text = "Separate multiple DNS IPs with a comma (e.g. 1.1.1.1,8.8.8.8) - no spaces required.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Yellow.copy(alpha = 0.8f),
+                                    fontSize = (10 * scaleFactor).sp,
+                                    modifier = Modifier.padding(start = (42 * scaleFactor).dp, top = 4.dp)
+                                )
+                            }
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosInputFieldRow(
+                                icon = Icons.AutoMirrored.Filled.AltRoute,
+                                iconBg = Color(0xFF5856D6),
+                                label = "Forced Peer IP",
+                                value = config.peer,
+                                onValueChange = { onUpdateConfig(config.copy(peer = it)) },
+                                placeholder = "e.g. 1.2.3.4:443",
+                                testTag = "peer_input",
+                                scaleFactor = scaleFactor
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (searchQuery.isEmpty() || "Logging System Logs App Core Level Diagnostics".contains(searchQuery, ignoreCase = true)) {
+                item {
+                    IosSectionHeader(title = "DIAGNOSTICS & SYSTEM LOGS", scaleFactor = scaleFactor)
+                    IosGroupCard {
+                        Column {
+                            IosPickerRow(
+                                icon = Icons.Default.BugReport,
+                                iconBg = Color(0xFF64D2FF),
+                                title = "App System Logging",
+                                value = config.appLogLevel.displayName.substringBefore(" ("),
+                                options = AetherLogLevel.entries.map { it.displayName },
+                                onOptionSelected = { index ->
+                                    onUpdateConfig(config.copy(appLogLevel = AetherLogLevel.entries[index]))
+                                },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosPickerRow(
+                                icon = Icons.Default.VpnLock,
+                                iconBg = Color(0xFF8E8E93),
+                                title = "Aether Core Logging",
+                                value = config.coreLogLevel.displayName.substringBefore(" ("),
+                                options = AetherLogLevel.entries.map { it.displayName },
+                                onOptionSelected = { index ->
+                                    onUpdateConfig(config.copy(coreLogLevel = AetherLogLevel.entries[index]))
+                                },
+                                scaleFactor = scaleFactor
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (searchQuery.isEmpty() || "Backup Restore Reset System Defaults".contains(searchQuery, ignoreCase = true)) {
+                item {
+                    IosSectionHeader(title = "BACKUP & SYSTEM MAINTENANCE", scaleFactor = scaleFactor)
+                    IosGroupCard {
+                        Column {
+                            IosActionRow(
+                                icon = Icons.Default.CloudUpload,
+                                iconBg = Color(0xFF5856D6),
+                                title = "Full Configuration Backup",
+                                subtitle = "Export all settings to .astf file",
+                                onClick = onExportBackup,
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosActionRow(
+                                icon = Icons.Default.CloudDownload,
+                                iconBg = Color(0xFF34C759),
+                                title = "Restore from Backup",
+                                subtitle = "Import settings from an .astf file",
+                                onClick = { fullBackupPicker.launch("*/*") },
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosActionRow(
+                                icon = Icons.Default.DeleteForever,
+                                iconBg = Color(0xFFFF3B30),
+                                title = "Reset to Factory Defaults",
+                                subtitle = "Wipe all custom tweaks and restart",
+                                onClick = { showResetDialog = true },
+                                scaleFactor = scaleFactor,
+                                titleColor = Color(0xFFFF3B30)
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                IosSectionHeader(title = "SYSTEM STABILITY", scaleFactor = scaleFactor)
+                IosGroupCard {
+                    Column {
+                        IosSwitchRow(
+                            icon = Icons.Default.BatteryAlert,
+                            iconBg = Color(0xFFFF3B30),
+                            title = "Battery Optimization",
+                            subtitle = "Allow AetherST to run without restrictions",
+                            checked = isBatteryOptimized,
+                            enabled = !isBatteryOptimized,
+                            onCheckedChange = { if (it) onRequestBatteryOptimization() },
+                            testTag = "switch_battery_opt",
+                            scaleFactor = scaleFactor
+                        )
+                    }
+                }
+            }
+
             item { Spacer(modifier = Modifier.height(16.dp)) }
+        }
+
+        if (showResetDialog) {
+            IosConfirmationDialog(
+                title = "Reset All Settings?",
+                message = "This will restore all protocols, engine tweaks, and security settings to their factory defaults. This action cannot be undone.",
+                confirmText = "Reset Everything",
+                confirmColor = Color(0xFFFF3B30),
+                onConfirm = {
+                    onResetAll()
+                    showResetDialog = false
+                    onShowToast("System restored to defaults", false)
+                },
+                onDismiss = { showResetDialog = false },
+                scaleFactor = scaleFactor
+            )
+        }
+    }
+}
+
+@Composable
+fun IosConfirmationDialog(
+    title: String,
+    message: String,
+    confirmText: String,
+    confirmColor: Color = Color.White,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    scaleFactor: Float = 1f
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f))
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                )
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = false) { },
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E).copy(alpha = 0.95f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = (18 * scaleFactor).sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IosSecondaryLabel,
+                        fontSize = (14 * scaleFactor).sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height((50 * scaleFactor).dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                        ) {
+                            Text(
+                                text = "Cancel",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = (14 * scaleFactor).sp,
+                                maxLines = 1,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        Button(
+                            onClick = onConfirm,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height((50 * scaleFactor).dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = confirmColor, contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            Text(
+                                text = confirmText,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = (14 * scaleFactor).sp,
+                                maxLines = 1,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -677,6 +1086,7 @@ fun IosSwitchRow(
     title: String,
     subtitle: String? = null,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit,
     testTag: String,
     scaleFactor: Float = 1f
@@ -699,14 +1109,14 @@ fun IosSwitchRow(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White,
+                    color = Color.White.copy(alpha = if (enabled) 1f else 0.5f),
                     fontSize = (15 * scaleFactor).sp
                 )
                 if (!subtitle.isNullOrEmpty()) {
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = IosSecondaryLabel,
+                        color = IosSecondaryLabel.copy(alpha = if (enabled) 1f else 0.5f),
                         fontSize = (11 * scaleFactor).sp
                     )
                 }
@@ -718,6 +1128,7 @@ fun IosSwitchRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
             modifier = Modifier
                 .testTag(testTag)
                 .graphicsLayer {
@@ -730,7 +1141,9 @@ fun IosSwitchRow(
                 checkedBorderColor = Color.Transparent,
                 uncheckedThumbColor = Color.White,
                 uncheckedTrackColor = IosInactiveSwitchTrack,
-                uncheckedBorderColor = Color.Transparent
+                uncheckedBorderColor = Color.Transparent,
+                disabledCheckedTrackColor = IosActiveSwitchGreen.copy(alpha = 0.5f),
+                disabledCheckedThumbColor = Color.White.copy(alpha = 0.8f)
             )
         )
     }
@@ -747,7 +1160,7 @@ fun IosPickerRow(
     scaleFactor: Float = 1f,
     onClickOverride: (() -> Unit)? = null
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(value = false) }
 
     Box {
         Row(
@@ -816,6 +1229,57 @@ fun IosPickerRow(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun IosActionRow(
+    icon: ImageVector,
+    iconBg: Color,
+    title: String,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+    scaleFactor: Float = 1f,
+    titleColor: Color = Color.White
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = (16 * scaleFactor).dp, vertical = (14 * scaleFactor).dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IosIconBadge(icon = icon, backgroundColor = iconBg, scaleFactor = scaleFactor)
+            Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = titleColor,
+                    fontSize = (15 * scaleFactor).sp
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IosSecondaryLabel,
+                        fontSize = (11 * scaleFactor).sp
+                    )
+                }
+            }
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = IosSecondaryLabel,
+            modifier = Modifier.size((18 * scaleFactor).dp)
+        )
     }
 }
 

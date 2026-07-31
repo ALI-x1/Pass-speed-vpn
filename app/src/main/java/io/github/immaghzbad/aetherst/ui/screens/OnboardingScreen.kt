@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.immaghzbad.aetherst.model.*
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun OnboardingScreen(
@@ -108,7 +109,7 @@ private fun OnboardingHeader() {
     var index by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(3000L)
+            kotlinx.coroutines.delay(3000.milliseconds)
             index = (index + 1) % slogans.size
         }
     }
@@ -199,7 +200,7 @@ private fun ProtocolTestStep(
         )
         Spacer(modifier = Modifier.height(24.dp))
 
-        SelectorLabel("Scan Mode")
+        SelectorLabel()
         AetherScanModeSelector(
             selected = state.selectedScanMode,
             allowedModes = allowedModes,
@@ -257,9 +258,9 @@ private fun ProtocolTestStep(
 }
 
 @Composable
-private fun SelectorLabel(text: String) {
+private fun SelectorLabel() {
     Text(
-        text = text.uppercase(),
+        text = "SCAN MODE",
         style = MaterialTheme.typography.labelSmall,
         color = Color(0xFF8E8E93),
         modifier = Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 8.dp)

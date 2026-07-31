@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -116,7 +117,7 @@ object LogRepository {
         scope.launch {
             try {
                 val json = logListAdapter.toJson(list)
-                prefs?.edit()?.putString("saved_logs", json)?.apply()
+                prefs?.edit { putString("saved_logs", json) }
             } catch (_: Exception) {}
         }
     }

@@ -1,6 +1,12 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,23 +20,31 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import io.github.immaghzbad.aetherst.model.AppInfo
+import io.github.immaghzbad.aetherst.model.TunnelEngine
 
 private val IosCardBg = Color(0xFF1C1C1E)
 private val IosSecondaryLabel = Color(0xFF8E8E93)
@@ -40,17 +54,45 @@ private val IosActiveBlue = Color(0xFF007AFF)
 fun SplitTunnelingScreen(
     apps: List<AppInfo>,
     excludedPackages: Set<String>,
-    onToggleApp: (String) -> Unit,
+    blockedPackages: Set<String>,
+    tunnelEngine: TunnelEngine,
+    onUpdateMode: (String, Int) -> Unit,
+    onShowToast: (String, Boolean) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     scaleFactor: Float = 1f
 ) {
     val focusManager = LocalFocusManager.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var showHelpDialog by remember { mutableStateOf(false) }
+    var animateDialog by remember { mutableStateOf(false) }
 
-    BackHandler(onBack = onBack)
+    BackHandler(onBack = {
+        if (showHelpDialog) {
+            animateDialog = false
+        } else {
+            onBack()
+        }
+    })
 
-    val filteredApps = remember(apps, searchQuery, selectedTab, excludedPackages) {
+    if (showHelpDialog) {
+        SplitTunnelHelpDialog(
+            visible = animateDialog,
+            onDismiss = { animateDialog = false },
+            onTransitionEnd = { 
+                showHelpDialog = false 
+            },
+            scaleFactor = scaleFactor
+        )
+    }
+
+    LaunchedEffect(showHelpDialog) {
+        if (showHelpDialog) {
+            animateDialog = true
+        }
+    }
+
+    val filteredApps = remember(apps, searchQuery, selectedTab, excludedPackages, blockedPackages) {
         apps.filter { app ->
             val matchesTab = if (selectedTab == 0) !app.isSystemApp else app.isSystemApp
             val matchesSearch = searchQuery.isEmpty() || 
@@ -58,7 +100,7 @@ fun SplitTunnelingScreen(
                                app.packageName.contains(searchQuery, ignoreCase = true)
             matchesTab && matchesSearch
         }.sortedWith(
-            compareByDescending<AppInfo> { excludedPackages.contains(it.packageName) }
+            compareByDescending<AppInfo> { excludedPackages.contains(it.packageName) || blockedPackages.contains(it.packageName) }
                 .thenBy { it.name.lowercase() }
         )
     }
@@ -88,8 +130,12 @@ fun SplitTunnelingScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
+                modifier = Modifier.weight(1f),
                 fontSize = (22 * scaleFactor).sp
             )
+            IconButton(onClick = { showHelpDialog = true }, modifier = Modifier.size((40 * scaleFactor).dp)) {
+                Icon(Icons.Default.Info, null, tint = IosActiveBlue, modifier = Modifier.size((24 * scaleFactor).dp))
+            }
         }
 
         Box(modifier = Modifier.padding(horizontal = (16 * scaleFactor).dp, vertical = (8 * scaleFactor).dp)) {
@@ -154,13 +200,25 @@ fun SplitTunnelingScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 24.dp)
+            contentPadding = PaddingValues(
+                start = (16 * scaleFactor).dp,
+                end = (16 * scaleFactor).dp,
+                bottom = (24 * scaleFactor).dp
+            ),
+            verticalArrangement = Arrangement.spacedBy((12 * scaleFactor).dp)
         ) {
             items(filteredApps, key = { it.packageName }) { app ->
+                val mode = when {
+                    excludedPackages.contains(app.packageName) -> 1
+                    blockedPackages.contains(app.packageName) -> 2
+                    else -> 0
+                }
                 AppLineItem(
                     app = app,
-                    isExcluded = excludedPackages.contains(app.packageName),
-                    onToggle = { onToggleApp(app.packageName) },
+                    mode = mode,
+                    tunnelEngine = tunnelEngine,
+                    onUpdateMode = { onUpdateMode(app.packageName, it) },
+                    onShowToast = onShowToast,
                     scaleFactor = scaleFactor
                 )
             }
@@ -171,70 +229,341 @@ fun SplitTunnelingScreen(
 @Composable
 private fun AppLineItem(
     app: AppInfo,
-    isExcluded: Boolean,
-    onToggle: () -> Unit,
+    mode: Int,
+    tunnelEngine: TunnelEngine,
+    onUpdateMode: (Int) -> Unit,
+    onShowToast: (String, Boolean) -> Unit,
+    scaleFactor: Float
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(IosCardBg, RoundedCornerShape((16 * scaleFactor).dp))
+            .padding((12 * scaleFactor).dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val bitmap = remember(app.packageName) { app.icon?.toBitmap()?.asImageBitmap() }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size((44 * scaleFactor).dp)
+                        .clip(RoundedCornerShape((10 * scaleFactor).dp))
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size((44 * scaleFactor).dp)
+                        .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape((10 * scaleFactor).dp))
+                )
+            }
+            
+            Spacer(modifier = Modifier.width((14 * scaleFactor).dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = app.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = (16 * scaleFactor).sp,
+                    maxLines = 1
+                )
+                Text(
+                    text = app.packageName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IosSecondaryLabel,
+                    fontSize = (11 * scaleFactor).sp,
+                    maxLines = 1
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height((12 * scaleFactor).dp))
+
+        ThreeStateSelector(
+            currentMode = mode,
+            tunnelEngine = tunnelEngine,
+            onModeSelected = onUpdateMode,
+            onShowToast = onShowToast,
+            scaleFactor = scaleFactor
+        )
+    }
+}
+
+@Composable
+private fun ThreeStateSelector(
+    currentMode: Int,
+    tunnelEngine: TunnelEngine,
+    onModeSelected: (Int) -> Unit,
+    onShowToast: (String, Boolean) -> Unit,
     scaleFactor: Float
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onToggle() }
-            .padding(horizontal = (16 * scaleFactor).dp, vertical = (10 * scaleFactor).dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape((10 * scaleFactor).dp))
+            .padding(2.dp)
     ) {
-        val bitmap = remember(app.packageName) { app.icon?.toBitmap()?.asImageBitmap() }
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                modifier = Modifier
-                    .size((40 * scaleFactor).dp)
-                    .clip(RoundedCornerShape((8 * scaleFactor).dp))
-            )
-        } else {
+        listOf("Tunnel", "Bypass", "Blocked").forEachIndexed { index, label ->
+            val isSelected = currentMode == index
+            val isBlockedOption = index == 2
+            val isBlockedAvailable = tunnelEngine == TunnelEngine.SOCKS_TUN_BRIDGE
+            val enabled = !isBlockedOption || isBlockedAvailable
+
             Box(
                 modifier = Modifier
-                    .size((40 * scaleFactor).dp)
-                    .background(IosCardBg, RoundedCornerShape((8 * scaleFactor).dp))
-            )
+                    .weight(1f)
+                    .clip(RoundedCornerShape((8 * scaleFactor).dp))
+                    .background(if (isSelected) IosActiveBlue else Color.Transparent)
+                    .alpha(if (enabled) 1f else 0.4f)
+                    .clickable { 
+                        if (enabled) {
+                            onModeSelected(index)
+                        } else {
+                            onShowToast("Blocked mode requires SocksTunBridge engine.", true)
+                        }
+                    }
+                    .padding(vertical = (8 * scaleFactor).dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    fontSize = (12 * scaleFactor).sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (isSelected) Color.White else IosSecondaryLabel
+                )
+            }
         }
-        
-        Spacer(modifier = Modifier.width((14 * scaleFactor).dp))
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = app.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                fontSize = (15 * scaleFactor).sp,
-                maxLines = 1
-            )
-            Text(
-                text = app.packageName,
-                style = MaterialTheme.typography.labelSmall,
-                color = IosSecondaryLabel,
-                fontSize = (10 * scaleFactor).sp,
-                maxLines = 1
-            )
-        }
-
-        Checkbox(
-            checked = isExcluded,
-            onCheckedChange = { onToggle() },
-            colors = CheckboxDefaults.colors(
-                checkedColor = IosActiveBlue,
-                uncheckedColor = IosSecondaryLabel,
-                checkmarkColor = Color.White
-            ),
-            modifier = Modifier.scale(scaleFactor)
-        )
     }
 }
 
-private fun Modifier.scale(scale: Float): Modifier = this.then(
-    Modifier.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+@Composable
+private fun SplitTunnelHelpDialog(
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    onTransitionEnd: () -> Unit,
+    scaleFactor: Float
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(300)) + scaleIn(tween(300), initialScale = 0.9f),
+            exit = fadeOut(tween(250)) + scaleOut(tween(250), targetScale = 0.9f)
+        ) {
+            DisposableEffect(Unit) {
+                onDispose {
+                    onTransitionEnd()
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding((12 * scaleFactor).dp)
+                        .clip(RoundedCornerShape((24 * scaleFactor).dp))
+                        .background(Color(0xFF1C1C1E).copy(alpha = 0.98f))
+                        .clickable(enabled = false) {}
+                        .padding((24 * scaleFactor).dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            null,
+                            tint = IosActiveBlue,
+                            modifier = Modifier.size((22 * scaleFactor).dp)
+                        )
+                        Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
+                        Text(
+                            "Split Tunnel Modes",
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = (20 * scaleFactor).sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height((24 * scaleFactor).dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy((18 * scaleFactor).dp)) {
+                        HelpItem(
+                            title = "Tunnel",
+                            desc = "Full protection. All traffic is encrypted and routed through the Aether secure tunnel.",
+                            icon = Icons.Default.Security,
+                            color = IosActiveBlue,
+                            scaleFactor = scaleFactor
+                        )
+                        HelpItem(
+                            title = "Bypass",
+                            desc = "Direct access. Uses your local network for maximum speed and compatibility with local apps.",
+                            icon = Icons.Default.Public,
+                            color = Color(0xFF34C759),
+                            scaleFactor = scaleFactor
+                        )
+                        HelpItem(
+                            title = "Blocked",
+                            desc = "Total isolation. This app will have no internet access, ensuring zero data leakage.",
+                            icon = Icons.Default.Block,
+                            color = Color(0xFFFF3B30),
+                            scaleFactor = scaleFactor
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height((20 * scaleFactor).dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFD60A).copy(alpha = 0.1f), RoundedCornerShape((12 * scaleFactor).dp))
+                            .padding((12 * scaleFactor).dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            null,
+                            tint = Color(0xFFFFD60A),
+                            modifier = Modifier.size((18 * scaleFactor).dp)
+                        )
+                        Spacer(modifier = Modifier.width((10 * scaleFactor).dp))
+                        Column {
+                            Text(
+                                "Engine Requirement",
+                                color = Color(0xFFFFD60A),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = (14 * scaleFactor).sp
+                            )
+                            Text(
+                                "Blocked mode is only available when SocksTunBridge is selected as the tunnel engine.",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = (12 * scaleFactor).sp,
+                                lineHeight = (17 * scaleFactor).sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height((12 * scaleFactor).dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFD60A).copy(alpha = 0.1f), RoundedCornerShape((12 * scaleFactor).dp))
+                            .padding((12 * scaleFactor).dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            null,
+                            tint = Color(0xFFFFD60A),
+                            modifier = Modifier.size((18 * scaleFactor).dp)
+                        )
+                        Spacer(modifier = Modifier.width((10 * scaleFactor).dp))
+                        Column {
+                            Text(
+                                "System Requirement",
+                                color = Color(0xFFFFD60A),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = (14 * scaleFactor).sp
+                            )
+                            Text(
+                                "The 'Blocked' feature requires Android 10 (API 29) or higher to identify app connections accurately. On older versions, this specific mode is automatically disabled to maintain system stability.",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = (12 * scaleFactor).sp,
+                                lineHeight = (17 * scaleFactor).sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height((28 * scaleFactor).dp))
+
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height((50 * scaleFactor).dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = IosActiveBlue,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape((14 * scaleFactor).dp)
+                    ) {
+                        Text(
+                            "Got it",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = (16 * scaleFactor).sp
+                        )
+                    }
+                }
+            }
+        }
     }
-)
+}
+
+@Composable
+private fun HelpItem(
+    title: String,
+    desc: String,
+    icon: ImageVector,
+    color: Color,
+    scaleFactor: Float
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size((40 * scaleFactor).dp)
+                .background(color.copy(alpha = 0.15f), RoundedCornerShape((12 * scaleFactor).dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size((22 * scaleFactor).dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.width((16 * scaleFactor).dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = color,
+                fontWeight = FontWeight.Bold,
+                fontSize = (16 * scaleFactor).sp
+            )
+            Spacer(modifier = Modifier.height((4 * scaleFactor).dp))
+            Text(
+                text = desc,
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = (13 * scaleFactor).sp,
+                lineHeight = (19 * scaleFactor).sp
+            )
+        }
+    }
+}

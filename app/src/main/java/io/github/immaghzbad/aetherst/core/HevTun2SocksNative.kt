@@ -4,7 +4,6 @@ import androidx.annotation.Keep
 import io.github.immaghzbad.aetherst.data.LogRepository
 
 @Keep
-@Suppress("KotlinJniMissingFunction")
 object HevTun2SocksNative {
     private val loaded: Boolean
     private val failure: Throwable?
@@ -25,9 +24,6 @@ object HevTun2SocksNative {
 
     val isAvailable: Boolean
         get() = loaded
-
-    val loadFailure: Throwable?
-        get() = failure
 
     external fun nativeStart(configStr: String, tunFd: Int): Int
     external fun nativeStop()

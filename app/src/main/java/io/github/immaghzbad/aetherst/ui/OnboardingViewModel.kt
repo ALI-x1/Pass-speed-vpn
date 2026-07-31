@@ -184,6 +184,7 @@ class OnboardingViewModel(context: Context) : ViewModel() {
             AetherProtocol.MASQUE -> 15000L
             AetherProtocol.WG -> 10000L
             AetherProtocol.GOOL -> 20000L
+            AetherProtocol.ZERO_TRUST -> 15000L
         }
         return if (scanMode == AetherScanMode.TURBO) base else base + 10000L
     }

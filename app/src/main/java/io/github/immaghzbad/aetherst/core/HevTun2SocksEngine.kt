@@ -79,14 +79,13 @@ class HevTun2SocksEngine {
             val config = HevTun2SocksConfig.generate(socksAddress, socksPort, mtu)
 
             engineJob = scope.launch {
-                var result = Int.MIN_VALUE
                 try {
-                    LogRepository.i("[Hev] [attempt=$attemptId] Native loop starting")
-                    result = HevTun2SocksNative.nativeStart(config, fd)
-                    val expected = stopping.get() || _state.value == State.STOPPING
+                    LogRepository.i("[Hev] [attempt=$attemptId] Engine event loop starting")
+                    val result = HevTun2SocksNative.nativeStart(config, fd)
+                    val expected = stopping.get() || (_state.value == State.STOPPING)
                     if (currentAttemptId.get() == attemptId) {
                         if (expected) {
-                            LogRepository.i("[Hev] [attempt=$attemptId] Native loop exited code=$result expected=true")
+                            LogRepository.i("[Hev] [attempt=$attemptId] Engine event loop exited (Code: $result)")
                             _state.value = State.STOPPED
                         } else {
                             LogRepository.e("[Hev] [attempt=$attemptId] Native loop exited code=$result expected=false")
@@ -109,19 +108,19 @@ class HevTun2SocksEngine {
             }
 
             scope.launch {
-                delay(500.milliseconds)
+                delay(800.milliseconds)
                 if (!started.isCompleted) {
                     val running = engineJob?.isActive == true && currentAttemptId.get() == attemptId
                     if (running) {
                         _state.value = State.RUNNING
                         startStatsPolling(attemptId)
-                        LogRepository.i("[Hev] [attempt=$attemptId] Engine running")
+                        LogRepository.i("[Hev] [attempt=$attemptId] Engine status: ACTIVE")
                     }
                     started.complete(running)
                 }
             }
 
-            withTimeoutOrNull(2.seconds) { started.await() } ?: false
+            withTimeoutOrNull(3.seconds) { started.await() } ?: false
         } catch (cancellation: CancellationException) {
             stopping.set(true)
             _state.value = State.STOPPING
@@ -152,19 +151,6 @@ class HevTun2SocksEngine {
         stopStatsPolling()
         runCatching { HevTun2SocksNative.nativeStop() }
             .onFailure { LogRepository.w("[Hev] Stop request failed: ${it.localizedMessage}") }
-    }
-
-    suspend fun stopAndAwait(): Boolean {
-        requestStop()
-        val job = engineJob ?: return true
-        val stopped = withTimeoutOrNull(3.seconds) {
-            job.join()
-            true
-        } ?: false
-        if (!stopped) {
-            LogRepository.w("[Hev] [attempt=${currentAttemptId.get()}] Native stop timed out")
-        }
-        return stopped
     }
 
     private fun startStatsPolling(attemptId: Long) {

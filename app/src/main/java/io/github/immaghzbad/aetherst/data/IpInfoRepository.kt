@@ -11,6 +11,7 @@ import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
+import kotlin.time.Duration.Companion.milliseconds
 
 data class IpInfo(
     val ip: String = "",
@@ -30,21 +31,21 @@ object IpInfoRepository {
 
         withContext(Dispatchers.IO) {
             if (!useProxy) {
-                LogRepository.i("Fetching IP directly (no proxy)...", "IpWhois")
+                LogRepository.i("Querying public IP endpoint...", "IpWhois")
                 if (tryFetchDirectIpWhois() || tryFetchDirectIpApi()) {
                     return@withContext
                 }
             } else {
-                delay(1200)
+                delay(1200.milliseconds)
 
                 for (attempt in 1..3) {
-                    LogRepository.i("Fetching IP via SOCKS5 ($socksHost:$socksPort) [Attempt $attempt/3]...", "IpWhois")
+                    LogRepository.i("Querying public IP via tunnel ($socksHost:$socksPort)...", "IpWhois")
 
                     val success = tryFetchFromIpWhois(socksHost, socksPort) || tryFetchFromIpApi(socksHost, socksPort)
                     if (success) return@withContext
 
                     if (attempt < 3) {
-                        delay(1000)
+                        delay(1000.milliseconds)
                     }
                 }
             }
@@ -88,7 +89,7 @@ object IpInfoRepository {
                             flagEmoji = flagEmoji,
                             isLoading = false
                         )
-                        LogRepository.i("Location acquired via ipwho.is: $ip | $country $flagEmoji", "IpWhois")
+                        LogRepository.i("Geo-data synchronized: $ip ($country $flagEmoji)", "IpWhois")
                         return true
                     }
                 }
@@ -127,7 +128,7 @@ object IpInfoRepository {
                         flagEmoji = flagEmoji,
                         isLoading = false
                     )
-                    LogRepository.i("Location acquired via ipapi.co: $ip | $country $flagEmoji", "IpWhois")
+                    LogRepository.i("Geo-data synchronized: $ip ($country $flagEmoji)", "IpWhois")
                     return true
                 }
             }
@@ -171,7 +172,7 @@ object IpInfoRepository {
             }
             conn.disconnect()
             false
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -204,7 +205,7 @@ object IpInfoRepository {
             }
             conn.disconnect()
             false
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

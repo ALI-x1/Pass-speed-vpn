@@ -3,24 +3,25 @@ package io.github.immaghzbad.aetherst.model
 enum class AetherProtocol(val rawValue: String, val displayName: String, val description: String) {
     MASQUE("masque", "MASQUE", "HTTP/2/3 Tunneling (MASQUE)"),
     WG("wg", "WireGuard", "Lean speed WireGuard tunnel"),
-    GOOL("gool", "Gool (WG-in-WG)", "Double encryption WireGuard-in-WireGuard")
+    GOOL("gool", "Gool (WG-in-WG)", "Double encryption WireGuard-in-WireGuard"),
+    ZERO_TRUST("zt", "Zero Trust", "Cloudflare for Organizations")
 }
 
-enum class AetherNoise(val rawValue: String, val displayName: String, val category: String) {
-    FIREWALL("firewall", "Firewall (Strict Censorship)", "masque"),
-    GFW("gfw", "GFW (Heavy DPI Obfuscation)", "masque"),
-    OFF("off", "Off (No Noise)", "all"),
-    BALANCED("balanced", "Balanced Stealth & Speed", "wg"),
-    AGGRESSIVE("aggressive", "Aggressive Decoy Packets", "wg"),
-    LIGHT("light", "Light Overhead", "wg")
+enum class AetherNoise(val rawValue: String, val displayName: String) {
+    FIREWALL("firewall", "Firewall (Strict Censorship)"),
+    GFW("gfw", "GFW (Heavy DPI Obfuscation)"),
+    OFF("off", "Off (No Noise)"),
+    BALANCED("balanced", "Balanced Stealth & Speed"),
+    AGGRESSIVE("aggressive", "Aggressive Decoy Packets"),
+    LIGHT("light", "Light Overhead")
 }
 
-enum class AetherScanMode(val rawValue: String, val displayName: String, val description: String) {
-    TURBO("turbo", "Turbo Scan", "Fastest endpoint match"),
-    BALANCED("balanced", "Balanced Scan", "Optimal speed & reliability"),
-    THOROUGH("thorough", "Thorough Optimization", "Deep ping & latency optimization"),
-    STEALTH("stealth", "Stealth Quiet Scan", "Quiet slow scanning"),
-    IRONCLAD("ironclad", "Ironclad Probe Verification", "Full end-to-end HTTP data probe verification")
+enum class AetherScanMode(val rawValue: String, val description: String) {
+    TURBO("turbo", "Fastest endpoint match"),
+    BALANCED("balanced", "Optimal speed & reliability"),
+    THOROUGH("thorough", "Deep ping & latency optimization"),
+    STEALTH("stealth", "Quiet slow scanning"),
+    IRONCLAD("ironclad", "Full end-to-end HTTP data probe verification")
 }
 
 enum class AetherIpMode(val rawValue: String, val displayName: String) {
@@ -29,12 +30,17 @@ enum class AetherIpMode(val rawValue: String, val displayName: String) {
     DUAL("Dual", "Dual Stack (4+6)")
 }
 
-enum class AetherLogLevel(val rawValue: String, val displayName: String) {
-    OFF("off", "Off (Disabled - Default, Zero RAM Overhead)"),
-    ERROR("error", "Error Only"),
-    WARN("warn", "Warning & Error"),
-    INFO("info", "Info, Warn & Error"),
-    DEBUG("debug", "Debug (All Verbose Output)")
+enum class AetherLogLevel(val displayName: String) {
+    OFF("Off (Disabled - Default, Zero RAM Overhead)"),
+    ERROR("Error Only"),
+    WARN("Warning & Error"),
+    INFO("Info, Warn & Error"),
+    DEBUG("Debug (All Verbose Output)")
+}
+
+enum class TunnelEngine(val displayName: String) {
+    HEV_TUN2SOCKS("HEV Tun2Socks"),
+    SOCKS_TUN_BRIDGE("SocksTunBridge")
 }
 
 enum class ConnectionState {
@@ -46,6 +52,17 @@ enum class ConnectionState {
     DISCONNECTING,
     ERROR
 }
+
+enum class RoutingMode {
+    TUNNEL,
+    DIRECT,
+    BLOCK
+}
+
+data class RoutingRule(
+    val pattern: String,
+    val mode: RoutingMode
+)
 
 data class AetherConfig(
     val presetId: String = "custom",
@@ -71,5 +88,20 @@ data class AetherConfig(
     val tlsGroups: String = "",
     val mtu: Int = 1100,
     val proxyOnly: Boolean = false,
-    val excludedPackages: Set<String> = emptySet()
+    val tunnelEngine: TunnelEngine = TunnelEngine.HEV_TUN2SOCKS,
+    val excludedPackages: Set<String> = emptySet(),
+    val blockedPackages: Set<String> = emptySet(),
+    val routingRules: List<RoutingRule> = emptyList(),
+    val teamName: String = "",
+    val accessEmail: String = "",
+    val accessId: String = "",
+    val accessSecret: String = "",
+    val accessToken: String = "",
+    val useGateway: Boolean = false,
+    val killSwitch: Boolean = false,
+    val ipv6Leak: Boolean = true,
+    val smartReconnect: Boolean = true,
+    val reconnectRetryLimit: Int = 10,
+    val strictKillSwitch: Boolean = false,
+    val dnsList: String = "1.1.1.1,1.0.0.1"
 )

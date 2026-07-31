@@ -75,6 +75,7 @@ private val IosDebugCyan = Color(0xFF64D2FF)
 @Composable
 fun LogsScreen(
     viewModel: AetherViewModel,
+    onShowToast: (String, Boolean) -> Unit = { _, _ -> },
     bottomContentPadding: Dp = 0.dp
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -143,7 +144,7 @@ fun LogsScreen(
                     IconButton(
                         onClick = {
                             viewModel.copyLogs(context)
-                            Toast.makeText(context, "Logs copied to clipboard!", Toast.LENGTH_SHORT).show()
+                            onShowToast("Logs copied to clipboard", false)
                         },
                         modifier = Modifier.size((40 * scaleFactor).dp).testTag("copy_logs_button")
                     ) {
@@ -190,7 +191,7 @@ fun LogsScreen(
                         )
                         Spacer(modifier = Modifier.width((10 * scaleFactor).dp))
                         Text(
-                            text = "Core logging is OFF to eliminate RAM overhead. Set Log Level in Config to record engine events.",
+                            text = "Core logging is OFF to eliminate RAM overhead. Set Log Level in Settings to record engine events.",
                             style = MaterialTheme.typography.bodySmall,
                             color = IosSecondaryLabel,
                             fontSize = (10 * scaleFactor).sp,
@@ -317,7 +318,7 @@ fun LogsScreen(
                         items = filteredLogs.distinctBy { it.id },
                         key = { it.id }
                     ) { entry ->
-                        IosLogLineItem(entry = entry, scaleFactor = scaleFactor)
+                        IosLogLineItem(entry = entry, onShowToast = onShowToast, scaleFactor = scaleFactor)
                     }
                     }
                 }
@@ -328,8 +329,11 @@ fun LogsScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun IosLogLineItem(entry: LogEntry, scaleFactor: Float = 1f) {
-    val context = LocalContext.current
+fun IosLogLineItem(
+    entry: LogEntry,
+    onShowToast: (String, Boolean) -> Unit = { _, _ -> },
+    scaleFactor: Float = 1f
+) {
     val clipboardManager = LocalClipboardManager.current
     val levelColor = when (entry.level) {
         LogLevel.INFO -> IosActiveGreen
@@ -349,7 +353,7 @@ fun IosLogLineItem(entry: LogEntry, scaleFactor: Float = 1f) {
                 onLongClick = {
                     val logText = "[${entry.timestamp}] [${entry.level.name}] [${entry.tag}] ${entry.message}"
                     clipboardManager.setText(AnnotatedString(logText))
-                    Toast.makeText(context, "Log copied", Toast.LENGTH_SHORT).show()
+                    onShowToast("Log line copied to clipboard", false)
                 }
             )
             .height(IntrinsicSize.Min)

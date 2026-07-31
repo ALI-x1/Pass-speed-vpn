@@ -12,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -95,7 +94,6 @@ class AetherRegistrationRunner(private val context: Context) {
             env["AETHER_IP"] = config.ipMode.rawValue
             env["AETHER_NOIZE"] = config.noise.rawValue
             env["AETHER_SOCKS"] = bindAddr
-            env["AETHER_LOG"] = "info"
 
             if (config.h2Mode) env["AETHER_MASQUE_HTTP2"] = "1"
             if (config.quickReconnect) env["AETHER_QUICK_RECONNECT"] = "1" else env["AETHER_QUICK_RECONNECT"] = "0"
@@ -116,9 +114,7 @@ class AetherRegistrationRunner(private val context: Context) {
                 process = proc
             }
 
-            var outerValidated = false
-            var innerValidated = false
-            var isListening = false
+            var validated = false
 
             BufferedReader(InputStreamReader(proc!!.inputStream)).use { reader ->
                 var line: String?
@@ -134,9 +130,7 @@ class AetherRegistrationRunner(private val context: Context) {
 
                     if (lower.contains("provisioned and saved") || lower.contains("identity ready")) {
                         onStatusUpdate(ProtocolTestStatus.IDENTITY_READY)
-                        outerValidated = true
-                        innerValidated = true
-                        isListening = true
+                        validated = true
                         break
                     } else if (lower.contains("enrolling")) {
                         onStatusUpdate(ProtocolTestStatus.REGISTERING)
@@ -154,8 +148,7 @@ class AetherRegistrationRunner(private val context: Context) {
                 }
             }
 
-            val success = outerValidated && (protocol != AetherProtocol.GOOL || innerValidated) && isListening
-            if (success) {
+            if (validated) {
                 onStatusUpdate(ProtocolTestStatus.CONNECTED)
                 RegistrationResult.Success
             } else {

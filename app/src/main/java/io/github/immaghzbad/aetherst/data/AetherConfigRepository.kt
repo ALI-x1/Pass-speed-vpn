@@ -2,12 +2,19 @@ package io.github.immaghzbad.aetherst.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import io.github.immaghzbad.aetherst.model.AetherConfig
 import io.github.immaghzbad.aetherst.model.AetherIpMode
 import io.github.immaghzbad.aetherst.model.AetherLogLevel
 import io.github.immaghzbad.aetherst.model.AetherNoise
 import io.github.immaghzbad.aetherst.model.AetherProtocol
 import io.github.immaghzbad.aetherst.model.AetherScanMode
+import io.github.immaghzbad.aetherst.model.RoutingMode
+import io.github.immaghzbad.aetherst.model.RoutingRule
+import io.github.immaghzbad.aetherst.model.TunnelEngine
 import io.github.immaghzbad.aetherst.model.OnboardingStep
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +23,12 @@ import kotlinx.coroutines.flow.asStateFlow
 class AetherConfigRepository private constructor(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("aether_prefs", Context.MODE_PRIVATE)
+
+    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    private val routingRulesAdapter = moshi.adapter<List<RoutingRule>>(
+        Types.newParameterizedType(List::class.java, RoutingRule::class.java),
+    )
+    private val fullConfigAdapter = moshi.adapter(AetherConfig::class.java)
 
     private val _config = MutableStateFlow(loadConfig())
     val config: StateFlow<AetherConfig> = _config.asStateFlow()
@@ -54,6 +67,7 @@ class AetherConfigRepository private constructor(context: Context) {
         val ipModeStr = prefs.getString("${prefix}ip_mode", AetherIpMode.IPV4.name) ?: AetherIpMode.IPV4.name
         val appLogLevelStr = prefs.getString("${prefix}app_log_level", AetherLogLevel.INFO.name) ?: AetherLogLevel.INFO.name
         val coreLogLevelStr = prefs.getString("${prefix}core_log_level", AetherLogLevel.OFF.name) ?: AetherLogLevel.OFF.name
+        val tunnelEngineStr = prefs.getString("${prefix}tunnel_engine", TunnelEngine.HEV_TUN2SOCKS.name) ?: TunnelEngine.HEV_TUN2SOCKS.name
         val presetId = prefs.getString("${prefix}preset_id", "custom") ?: "custom"
 
         val socksHost = prefs.getString("${prefix}socks_host", "127.0.0.1") ?: "127.0.0.1"
@@ -83,7 +97,26 @@ class AetherConfigRepository private constructor(context: Context) {
             tlsGroups = prefs.getString("${prefix}tls_groups", "") ?: "",
             mtu = prefs.getInt("${prefix}mtu", 1100),
             proxyOnly = prefs.getBoolean("${prefix}proxy_only", false),
-            excludedPackages = prefs.getStringSet("${prefix}excluded_packages", emptySet()) ?: emptySet()
+            tunnelEngine = runCatching { TunnelEngine.valueOf(tunnelEngineStr) }.getOrDefault(TunnelEngine.HEV_TUN2SOCKS),
+            excludedPackages = prefs.getStringSet("${prefix}excluded_packages", emptySet()) ?: emptySet(),
+            blockedPackages = prefs.getStringSet("${prefix}blocked_packages", emptySet()) ?: emptySet(),
+            routingRules = prefs.getString("${prefix}routing_rules", null)?.let {
+                runCatching { routingRulesAdapter.fromJson(it) }.getOrNull()
+            }?.map {
+                if (it.mode == RoutingMode.DIRECT) it.copy(mode = RoutingMode.TUNNEL) else it
+            } ?: emptyList(),
+            teamName = prefs.getString("${prefix}team_name", "") ?: "",
+            accessEmail = prefs.getString("${prefix}access_email", "") ?: "",
+            accessId = prefs.getString("${prefix}access_id", "") ?: "",
+            accessSecret = prefs.getString("${prefix}access_secret", "") ?: "",
+            accessToken = prefs.getString("${prefix}access_token", "") ?: "",
+            useGateway = prefs.getBoolean("${prefix}use_gateway", false),
+            killSwitch = prefs.getBoolean("${prefix}kill_switch", false),
+            ipv6Leak = prefs.getBoolean("${prefix}ipv6_leak", true),
+            smartReconnect = prefs.getBoolean("${prefix}smart_reconnect", true),
+            reconnectRetryLimit = prefs.getInt("${prefix}reconnect_retry_limit", 10),
+            strictKillSwitch = prefs.getBoolean("${prefix}strict_kill_switch", false),
+            dnsList = prefs.getString("${prefix}dns_list", "1.1.1.1,1.0.0.1") ?: "1.1.1.1,1.0.0.1"
         )
     }
 
@@ -97,7 +130,7 @@ class AetherConfigRepository private constructor(context: Context) {
     }
 
     fun setOnboardingComplete(complete: Boolean) {
-        prefs.edit().putBoolean("onboarding_complete", complete).apply()
+        prefs.edit { putBoolean("onboarding_complete", complete) }
         _isOnboardingComplete.value = complete
     }
 
@@ -107,19 +140,11 @@ class AetherConfigRepository private constructor(context: Context) {
     }
 
     fun setOnboardingStep(step: OnboardingStep) {
-        prefs.edit().putString("onboarding_step_name", step.name).apply()
-    }
-
-    fun getLastDismissedUpdate(): String {
-        return prefs.getString("last_dismissed_update", "") ?: ""
-    }
-
-    fun setLastDismissedUpdate(version: String) {
-        prefs.edit().putString("last_dismissed_update", version).apply()
+        prefs.edit { putString("onboarding_step_name", step.name) }
     }
 
     private fun saveToPrefs(prefix: String, cfg: AetherConfig) {
-        prefs.edit().apply {
+        prefs.edit {
             putString("${prefix}preset_id", cfg.presetId)
             putString("${prefix}protocol", cfg.protocol.name)
             putString("${prefix}noise", cfg.noise.name)
@@ -143,8 +168,43 @@ class AetherConfigRepository private constructor(context: Context) {
             putString("${prefix}tls_groups", cfg.tlsGroups)
             putInt("${prefix}mtu", cfg.mtu)
             putBoolean("${prefix}proxy_only", cfg.proxyOnly)
+            putString("${prefix}tunnel_engine", cfg.tunnelEngine.name)
             putStringSet("${prefix}excluded_packages", cfg.excludedPackages)
-            apply()
+            putStringSet("${prefix}blocked_packages", cfg.blockedPackages)
+            putString("${prefix}routing_rules", routingRulesAdapter.toJson(cfg.routingRules))
+            putString("${prefix}team_name", cfg.teamName)
+            putString("${prefix}access_email", cfg.accessEmail)
+            putString("${prefix}access_id", cfg.accessId)
+            putString("${prefix}access_secret", cfg.accessSecret)
+            putString("${prefix}access_token", cfg.accessToken)
+            putBoolean("${prefix}use_gateway", cfg.useGateway)
+            putBoolean("${prefix}kill_switch", cfg.killSwitch)
+            putBoolean("${prefix}ipv6_leak", cfg.ipv6Leak)
+            putBoolean("${prefix}smart_reconnect", cfg.smartReconnect)
+            putInt("${prefix}reconnect_retry_limit", cfg.reconnectRetryLimit)
+            putBoolean("${prefix}strict_kill_switch", cfg.strictKillSwitch)
+            putString("${prefix}dns_list", cfg.dnsList)
+        }
+    }
+
+    fun resetToDefaults() {
+        val defaultConfig = AetherConfig()
+        updateConfig(defaultConfig)
+        LogRepository.i("System reset: All settings restored to factory defaults")
+    }
+
+    fun getFullConfigJson(): String {
+        return fullConfigAdapter.toJson(_config.value)
+    }
+
+    fun restoreFullConfig(json: String): Boolean {
+        return try {
+            val restored = fullConfigAdapter.fromJson(json) ?: return false
+            updateConfig(restored)
+            LogRepository.i("Full configuration restored from backup")
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -191,6 +251,7 @@ class AetherConfigRepository private constructor(context: Context) {
             )
             else -> current
         }
+        LogRepository.i("Configuration profile applied: $presetId")
         saveToPrefs("", updated)
         LogRepository.currentAppLogLevel = updated.appLogLevel
         LogRepository.currentCoreLogLevel = updated.coreLogLevel

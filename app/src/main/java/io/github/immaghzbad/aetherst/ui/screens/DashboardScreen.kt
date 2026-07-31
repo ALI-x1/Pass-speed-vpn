@@ -1,6 +1,5 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
-import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -53,7 +52,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -94,6 +92,7 @@ fun DashboardScreen(
     onUpdateProtocol: (AetherProtocol) -> Unit,
     onRefreshIpInfo: () -> Unit = {},
     onRefreshPing: () -> Unit = {},
+    onShowToast: (String, Boolean) -> Unit = { _, _ -> },
     bottomContentPadding: Dp = 0.dp
 ) {
     BoxWithConstraints(
@@ -133,11 +132,11 @@ fun DashboardScreen(
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
-                            fontSize = (26 * scaleFactor).sp,
-                            lineHeight = (30 * scaleFactor).sp
+                            fontSize = (24 * scaleFactor).sp,
+                            lineHeight = (28 * scaleFactor).sp
                         )
                         Text(
-                            text = "One tap. Private everywhere.",
+                            text = "Secure & Private Tunneling",
                             style = MaterialTheme.typography.bodySmall,
                             color = IosSecondaryLabel,
                             fontSize = (10 * scaleFactor).sp
@@ -148,12 +147,12 @@ fun DashboardScreen(
                         color = IosGroupBg
                     ) {
                         Text(
-                            text = "v1.1.0-BETA",
+                            text = "v1.2.0",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = IosActiveBlue,
-                            fontSize = (8 * scaleFactor).sp
+                            fontSize = (7 * scaleFactor).sp
                         )
                     }
                 }
@@ -167,9 +166,34 @@ fun DashboardScreen(
                     pingState = pingState,
                     onRefreshIpInfo = onRefreshIpInfo,
                     onRefreshPing = onRefreshPing,
+                    onShowToast = onShowToast,
                     hideConfigChips = isCompactHeight,
                     scaleFactor = scaleFactor
                 )
+
+                if (!isVeryCompactHeight && connectionState == ConnectionState.ERROR) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = IosErrorRed.copy(alpha = 0.1f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Refresh, null, tint = IosErrorRed, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Connection failed. Please try reconnecting.",
+                                color = IosErrorRed,
+                                fontSize = (11 * scaleFactor).sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
             }
 
             Box(
@@ -218,6 +242,7 @@ fun IosStatusHeroCard(
     pingState: PingState = PingState(),
     onRefreshIpInfo: () -> Unit = {},
     onRefreshPing: () -> Unit = {},
+    onShowToast: (String, Boolean) -> Unit = { _, _ -> },
     hideConfigChips: Boolean = false,
     scaleFactor: Float = 1f
 ) {
@@ -266,22 +291,22 @@ fun IosStatusHeroCard(
                                 .background(statusColor)
                         )
                         Spacer(modifier = Modifier.width((5 * scaleFactor).dp))
-                        Text(
-                            text = when (connectionState) {
-                                ConnectionState.CONNECTED -> "SECURELY CONNECTED"
-                                ConnectionState.SCANNING -> "SCANNING..."
-                                ConnectionState.VALIDATING -> "VALIDATING..."
-                                ConnectionState.RECONNECTING -> "RECONNECTING..."
-                                ConnectionState.DISCONNECTING -> "DISCONNECTING..."
-                                ConnectionState.ERROR -> "CONNECTION ERROR"
-                                ConnectionState.DISCONNECTED -> "DISCONNECTED"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp,
-                            color = statusColor,
-                            fontSize = (8.5 * scaleFactor).sp
-                        )
+                                Text(
+                                    text = when (connectionState) {
+                                        ConnectionState.CONNECTED -> "PROTECTED & CONNECTED"
+                                        ConnectionState.SCANNING -> "FINDING SERVERS..."
+                                        ConnectionState.VALIDATING -> "ESTABLISHING LINK..."
+                                        ConnectionState.RECONNECTING -> "RECONNECTING..."
+                                        ConnectionState.DISCONNECTING -> "DISCONNECTING..."
+                                        ConnectionState.ERROR -> "CONNECTION ERROR"
+                                        ConnectionState.DISCONNECTED -> "READY TO CONNECT"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                    color = statusColor,
+                                    fontSize = (8.5 * scaleFactor).sp
+                                )
                     }
 
                     Surface(
@@ -347,9 +372,9 @@ fun IosStatusHeroCard(
                             Text(
                                 text = when {
                                     pingState.isPinging -> "..."
-                                    pingState.error != null -> "ERROR"
+                                    pingState.error != null -> "TIMEOUT"
                                     pingState.ms >= 0 -> "${pingState.ms}ms"
-                                    else -> "Ping"
+                                    else -> "PING"
                                 },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
@@ -359,7 +384,7 @@ fun IosStatusHeroCard(
                         }
                     } else {
                         Text(
-                            text = if (connectionState == ConnectionState.RECONNECTING) "RETRY" else "OFFLINE",
+                            text = if (connectionState == ConnectionState.RECONNECTING) "RETRY" else "NO UPLINK",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (connectionState == ConnectionState.RECONNECTING) IosScanningAmber else IosSecondaryLabel,
@@ -380,7 +405,7 @@ fun IosStatusHeroCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     TrafficValue(
-                        label = "UPLOAD",
+                        label = "UPLOADED",
                         value = formatTrafficBytes(sessionTraffic.uploadedBytes),
                         color = IosActiveBlue,
                         alignment = Alignment.Start,
@@ -388,7 +413,7 @@ fun IosStatusHeroCard(
                         scaleFactor = scaleFactor
                     )
                     TrafficValue(
-                        label = "DOWNLOAD",
+                        label = "DOWNLOADED",
                         value = formatTrafficBytes(sessionTraffic.downloadedBytes),
                         color = IosActiveGreen,
                         alignment = Alignment.End,
@@ -400,7 +425,6 @@ fun IosStatusHeroCard(
                 Spacer(modifier = Modifier.height((8 * scaleFactor).dp))
 
                 val clipboardManager = LocalClipboardManager.current
-                val context = LocalContext.current
 
                 Surface(
                     modifier = Modifier
@@ -411,7 +435,7 @@ fun IosStatusHeroCard(
                             onLongClick = {
                                 if (ipInfo.ip.isNotEmpty()) {
                                     clipboardManager.setText(AnnotatedString(ipInfo.ip))
-                                    Toast.makeText(context, "IP copied", Toast.LENGTH_SHORT).show()
+                                    onShowToast("IP address copied to clipboard", false)
                                 }
                             }
                         ),
@@ -444,12 +468,21 @@ fun IosStatusHeroCard(
                                     color = Color.White,
                                     fontSize = (11 * scaleFactor).sp
                                 )
-                                Text(
-                                    text = if (ipInfo.ip.isNotEmpty()) ipInfo.ip else "Tap refresh",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (ipInfo.error != null) IosScanningAmber else IosSecondaryLabel,
-                                    fontSize = (9 * scaleFactor).sp
-                                )
+                            Text(
+                                text = when {
+                                    ipInfo.ip.isNotEmpty() -> ipInfo.ip
+                                    ipInfo.isLoading -> "LOCATING YOUR IP..."
+                                    ipInfo.error != null -> "COULD NOT FIND IP"
+                                    else -> "SHOW PUBLIC IP"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = when {
+                                    ipInfo.error != null -> IosErrorRed
+                                    ipInfo.isLoading -> IosScanningAmber
+                                    else -> IosSecondaryLabel
+                                },
+                                fontSize = (9 * scaleFactor).sp
+                            )
                             }
                         }
 
@@ -481,9 +514,9 @@ fun IosStatusHeroCard(
                             .padding(6.dp),
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        IosConfigChip(label = "NOISE", value = config.noise.displayName.split(" ")[0], scaleFactor = scaleFactor)
-                        IosConfigChip(label = "SCAN", value = config.scanMode.name.take(6), scaleFactor = scaleFactor)
-                        IosConfigChip(label = "IP STACK", value = config.ipMode.rawValue, scaleFactor = scaleFactor)
+                        IosConfigChip(label = "BYPASS", value = config.noise.displayName.split(" ")[0], scaleFactor = scaleFactor)
+                        IosConfigChip(label = "SPEED", value = config.scanMode.name.take(6), scaleFactor = scaleFactor)
+                        IosConfigChip(label = "NETWORK", value = config.ipMode.rawValue, scaleFactor = scaleFactor)
                     }
                 }
             }
@@ -594,8 +627,9 @@ fun IosPowerButton(
     )
 
     val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f, targetValue = 0.05f,
-        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Reverse),
+        initialValue = 0.4f,
+        targetValue = 0.02f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Reverse),
         label = "glowAlpha"
     )
 
@@ -697,7 +731,7 @@ fun IosProtocolSegmentedControl(
 ) {
     Column {
         Text(
-            text = "TRANSPORT PROTOCOL",
+            text = "CONNECTION PROTOCOL",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = IosSecondaryLabel,
@@ -730,11 +764,11 @@ fun IosProtocolSegmentedControl(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = proto.displayName.split(" ")[0].uppercase(),
+                        text = if (proto == AetherProtocol.ZERO_TRUST) "Z-TRUST" else proto.displayName.split(" ")[0].uppercase(),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         color = if (selected) Color.White else IosSecondaryLabel,
-                        fontSize = (10 * scaleFactor).sp
+                        fontSize = (9 * scaleFactor).sp
                     )
                 }
             }

@@ -1,7 +1,7 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "version_code": 1,
-  "is_beta": true,
-  "changelog": "UI/UX improvements, Split Tunneling support, and stability fixes.",
-  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.1.0"
+  "is_beta": false,
+  "changelog": "• Added Quick Settings Tile support\n• Added Kill Switch (Standard/Strict)\n• IPv6 Leak Protection\n• Smart Reconnect logic\n• Real MTU Auto-Optimization\n• Full Config Backup/Restore (.astf)\n• App blocking in Split Tunneling\n• Advanced Domain & IP Routing\n• Overhauled Settings UI with Search\n• Refined Nav Bar\n• Upgraded Aether Core to v1.5.0\n• Fixed disconnections on Android 8\n• Optimized TCP/DNS stability\n• Fixed app counting",
+  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.2.0"
 }

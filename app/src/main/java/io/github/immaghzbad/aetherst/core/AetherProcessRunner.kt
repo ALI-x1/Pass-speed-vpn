@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.BufferedWriter
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -36,7 +39,7 @@ class AetherProcessRunner(private val context: Context) {
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    fun start(config: AetherConfig, bindAddress: String) {
+    fun start(config: AetherConfig, bindAddress: String, onCodeRequired: () -> Unit = {}, inputProvider: suspend () -> String = { "" }) {
         synchronized(lock) {
             if (runnerJob?.isActive == true) return
 
@@ -45,24 +48,30 @@ class AetherProcessRunner(private val context: Context) {
                 var retryCount = 0
 
                 while (isActive && (currentAttemptId.get() == attemptId)) {
+                    if (config.smartReconnect && (retryCount >= config.reconnectRetryLimit)) {
+                        LogRepository.e("Smart Reconnect limit reached ($retryCount). Stopping...")
+                        updateState(ConnectionState.ERROR, attemptId)
+                        break
+                    }
+
                     if (retryCount > 0) {
                         val waitTime = (retryCount * 1000L).coerceAtMost(10000L)
-                        LogRepository.i("Re-initializing tunnel (Retry cycle $retryCount)...")
+                        LogRepository.i("Recovering connection (Retry $retryCount)...")
                         updateState(ConnectionState.RECONNECTING, attemptId)
                         delay(waitTime.milliseconds)
                     } else {
-                        LogRepository.i("Initializing Aether Core...")
+                        LogRepository.i("Starting system core...")
                         updateState(ConnectionState.SCANNING, attemptId)
                     }
 
                     if (currentAttemptId.get() != attemptId) break
 
                     try {
-                        val result = runBinary(config, attemptId, bindAddress)
+                        val result = runBinary(config, attemptId, bindAddress, onCodeRequired, inputProvider)
                         if (currentAttemptId.get() != attemptId) break
                         
                         if (!result) {
-                            LogRepository.e("Core stabilization failed, triggering retry.")
+                            LogRepository.e("Stability check failed. Retrying...")
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -79,16 +88,27 @@ class AetherProcessRunner(private val context: Context) {
         }
     }
 
-    private suspend fun runBinary(config: AetherConfig, attemptId: Long, bindAddress: String): Boolean {
+    private suspend fun runBinary(config: AetherConfig, attemptId: Long, bindAddress: String, onCodeRequired: () -> Unit, inputProvider: suspend () -> String): Boolean = coroutineScope {
         var proc: Process? = null
-        return try {
+        try {
             val binaryFile = BinaryManager.prepareBinary(context)
-            if (currentAttemptId.get() != attemptId) return true
+            if (currentAttemptId.get() != attemptId) return@coroutineScope true
 
             val commandList = mutableListOf<String>()
             commandList.add(binaryFile.absolutePath)
             commandList.add("--bind")
             commandList.add(bindAddress)
+
+            val routingFile = writeRoutingFile(config)
+            if (routingFile != null) {
+                commandList.add("--routes")
+                commandList.add(routingFile.absolutePath)
+            }
+
+            if (config.protocol == AetherProtocol.ZERO_TRUST) {
+                commandList.add("--team")
+                commandList.add(config.teamName.ifEmpty { "unnamed" })
+            }
 
             commandList.add(
                 when (config.ipMode) {
@@ -124,7 +144,42 @@ class AetherProcessRunner(private val context: Context) {
                 commandList.add(config.tlsGroups)
             }
 
+            commandList.add("--validate-secs")
+            commandList.add(config.validateSecs.toString())
+            
+            commandList.add("--reconnect-secs")
+            commandList.add(config.reconnectSecs.toString())
+
             if (config.noProfileRetry) commandList.add("--no-profile-retry")
+
+            if (config.teamName.isNotEmpty() && config.protocol != AetherProtocol.ZERO_TRUST) {
+                commandList.add("--team")
+                commandList.add(config.teamName)
+            }
+            if (config.accessEmail.isNotEmpty()) {
+                commandList.add("--access-email")
+                commandList.add(config.accessEmail)
+            }
+            if (config.accessId.isNotEmpty()) {
+                commandList.add("--access-id")
+                commandList.add(config.accessId)
+            }
+            if (config.accessSecret.isNotEmpty()) {
+                commandList.add("--access-secret")
+                commandList.add(config.accessSecret)
+            }
+            if (config.accessToken.isNotEmpty()) {
+                commandList.add("--access-token")
+                commandList.add(config.accessToken)
+            }
+            if (config.useGateway) {
+                commandList.add("--gateway")
+            }
+
+            if (config.dnsList.isNotEmpty()) {
+                commandList.add("--dns")
+                commandList.add(config.dnsList)
+            }
 
             val pb = ProcessBuilder(commandList)
             pb.directory(context.filesDir)
@@ -135,7 +190,10 @@ class AetherProcessRunner(private val context: Context) {
             env["AETHER_SCAN"] = config.scanMode.rawValue
             env["AETHER_IP"] = config.ipMode.rawValue
             env["AETHER_SOCKS"] = bindAddress
-            env["AETHER_LOG"] = config.coreLogLevel.rawValue
+
+            if (routingFile != null) {
+                env["AETHER_ROUTES_FILE"] = routingFile.absolutePath
+            }
 
             if (config.h2Mode) env["AETHER_MASQUE_HTTP2"] = "1"
             if (config.h2Fragment) {
@@ -164,6 +222,14 @@ class AetherProcessRunner(private val context: Context) {
             if (config.noProfileRetry) env["AETHER_WG_NO_PROFILE_RETRY"] = "1"
             if (config.tlsGroups.isNotEmpty()) env["AETHER_TLS_GROUPS"] = config.tlsGroups
 
+            if (config.teamName.isNotEmpty()) env["AETHER_TEAM"] = config.teamName
+            if (config.accessEmail.isNotEmpty()) env["AETHER_ACCESS_EMAIL"] = config.accessEmail
+            if (config.accessId.isNotEmpty()) env["AETHER_ACCESS_ID"] = config.accessId
+            if (config.accessSecret.isNotEmpty()) env["AETHER_ACCESS_SECRET"] = config.accessSecret
+            if (config.accessToken.isNotEmpty()) env["AETHER_ACCESS_TOKEN"] = config.accessToken
+            if (config.useGateway) env["AETHER_GATEWAY"] = "1"
+            if (config.dnsList.isNotEmpty()) env["AETHER_DNS"] = config.dnsList
+
             pb.redirectErrorStream(true)
 
             proc = withContext(Dispatchers.IO) { pb.start() }
@@ -171,9 +237,26 @@ class AetherProcessRunner(private val context: Context) {
             synchronized(lock) {
                 if (currentAttemptId.get() != attemptId) {
                     proc?.destroyForcibly()
-                    return true
+                    return@coroutineScope true
                 }
                 process = proc
+            }
+
+            val inputJob = launch {
+                val writer = BufferedWriter(OutputStreamWriter(proc!!.outputStream))
+                try {
+                    while (isActive) {
+                        val text = inputProvider()
+                        if (text.isNotEmpty()) {
+                            writer.write(text)
+                            writer.newLine()
+                            writer.flush()
+                            LogRepository.d("Sent input to binary")
+                        }
+                    }
+                } catch (e: Exception) {
+                    LogRepository.w("Process input pipe closed: ${e.localizedMessage}")
+                }
             }
 
             BufferedReader(InputStreamReader(proc!!.inputStream)).use { reader ->
@@ -185,13 +268,14 @@ class AetherProcessRunner(private val context: Context) {
                         if (currentAttemptId.get() != attemptId) null else throw e
                     } ?: break
 
-                    parseOutputLine(line, attemptId, config.protocol)
+                    parseOutputLine(line, attemptId, config.protocol, onCodeRequired)
                 }
             }
 
+            inputJob.cancel()
             val exitCode = try { withContext(Dispatchers.IO) { proc.waitFor() } } catch (_: Exception) { -1 }
             if (currentAttemptId.get() == attemptId) {
-                LogRepository.i("Core process exited with code $exitCode")
+                LogRepository.i("Core process terminated (Exit code: $exitCode)")
             }
             exitCode == 0
         } catch (e: CancellationException) {
@@ -199,7 +283,7 @@ class AetherProcessRunner(private val context: Context) {
         } catch (e: Exception) {
             if (currentAttemptId.get() == attemptId) {
                 LogRepository.e("Binary runtime error: ${e.localizedMessage}")
-                return false
+                return@coroutineScope false
             }
             true
         } finally {
@@ -210,12 +294,18 @@ class AetherProcessRunner(private val context: Context) {
         }
     }
 
-    private fun parseOutputLine(line: String, attemptId: Long, protocol: AetherProtocol) {
+    private fun parseOutputLine(line: String, attemptId: Long, protocol: AetherProtocol, onCodeRequired: () -> Unit) {
         if (currentAttemptId.get() != attemptId) return
 
         LogRepository.i(line, "AetherCore")
 
         val lower = line.lowercase()
+
+        if (lower.contains("enter code:") || lower.contains("login code required")) {
+            onCodeRequired()
+            return
+        }
+
         val isCriticalError = (lower.contains("fatal") || lower.contains("panic")) &&
                 !lower.contains("socksbridge") &&
                 !lower.contains("connection failed")
@@ -274,6 +364,44 @@ class AetherProcessRunner(private val context: Context) {
         }
     }
 
+    private fun writeRoutingFile(config: AetherConfig): java.io.File? {
+        val rules = config.routingRules
+        val block = rules.filter { it.mode == io.github.immaghzbad.aetherst.model.RoutingMode.BLOCK }
+
+        if (block.isEmpty()) return null
+
+        return try {
+            val file = java.io.File(context.filesDir, "routing.ast")
+            val content = StringBuilder()
+
+            if (block.isNotEmpty()) {
+                content.append("[block]\n")
+                block.forEach { content.append(formatRoutingPattern(it.pattern)).append("\n") }
+                content.append("\n")
+            }
+
+            file.writeText(content.toString())
+            file
+        } catch (e: Exception) {
+            LogRepository.e("Failed to write routing file: ${e.localizedMessage}")
+            null
+        }
+    }
+
+    private fun formatRoutingPattern(pattern: String): String {
+        val trimmed = pattern.trim()
+        if (trimmed.startsWith("domain:") || trimmed.startsWith("ip:") || 
+            trimmed.startsWith("keyword:") || trimmed.startsWith("regexp:") ||
+            trimmed == "private") {
+            return trimmed
+        }
+
+        val isIp = trimmed.all { it.isDigit() || it == '.' || it == ':' || it == '/' || (it.lowercaseChar() in 'a'..'f') } &&
+                (trimmed.contains('.') || trimmed.contains(':'))
+        
+        return if (isIp) "ip:$trimmed" else "domain:$trimmed"
+    }
+
     fun stop() {
         currentAttemptId.incrementAndGet()
         _connectionState.value = ConnectionState.DISCONNECTED
@@ -293,7 +421,7 @@ class AetherProcessRunner(private val context: Context) {
             procToDestroy?.destroyForcibly()
         } catch (_: Exception) {}
 
-        LogRepository.i("Tunnel shutdown complete.")
+        LogRepository.i("System core shutdown initiated.")
     }
 
     fun release() {

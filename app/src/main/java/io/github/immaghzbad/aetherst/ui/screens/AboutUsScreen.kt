@@ -73,11 +73,11 @@ fun AboutUsScreen(
                 AboutInfoCard(
                     icon = Icons.Default.Info,
                     iconColor = IosActiveBlue,
-                    title = "The AetherST Experience",
+                    title = "Project Overview",
                     scaleFactor = scaleFactor
                 ) {
                     Text(
-                        text = "AetherST serves as a high-performance Android gateway to the Aether ecosystem. It abstracts the underlying complexity of advanced tunneling protocols into a refined, user-centric interface. By offering granular connection controls, real-time telemetry, and intelligent configuration presets, it ensures that establishing a secure and stable digital tunnel is seamless, even for non-technical users.",
+                        text = "AetherST is a native Android client for the Aether tunnel ecosystem. It handles the heavy lifting of managing advanced protocols through a clean interface with real-time stats and simple configuration presets.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = IosSecondaryLabel,
                         lineHeight = (22 * scaleFactor).sp,
@@ -89,53 +89,73 @@ fun AboutUsScreen(
                 AboutInfoCard(
                     icon = Icons.Default.Shield,
                     iconColor = IosActiveGreen,
-                    title = "Core Architecture: Aether",
+                    title = "The Aether Core",
                     scaleFactor = scaleFactor
                 ) {
                     Text(
-                        text = "Aether is a cutting-edge, open-source proxy core engineered to thrive in the world's most restrictive network environments. Unlike traditional VPNs, Aether focuses on advanced censorship circumvention through dynamic gateway discovery and rigorous data-plane validation. It utilizes sophisticated noise obfuscation and multiple transport layers to mask traffic signatures, ensuring your connection remains both invisible and resilient.",
+                        text = "Aether is an open-source proxy core built for stability in restricted networks. It uses dynamic gateway discovery, traffic obfuscation, and multiple transport layers to keep connections reliable and stealthy.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = IosSecondaryLabel,
                         lineHeight = (22 * scaleFactor).sp,
                         fontSize = (14 * scaleFactor).sp
                     )
                     Spacer(modifier = Modifier.height((14 * scaleFactor).dp))
-                    FeatureRow(icon = Icons.Default.Language, title = "Censorship-Resistant", description = "Specifically designed to bypass Deep Packet Inspection (DPI) and protocol-based blocking.", scaleFactor = scaleFactor)
-                    FeatureRow(icon = Icons.Default.Security, title = "Hybrid Transports", description = "Support for MASQUE (HTTP/3 & HTTP/2), WireGuard, and cascaded tunnel architectures.", scaleFactor = scaleFactor)
-                    FeatureRow(icon = Icons.Default.NetworkCheck, title = "Adaptive Validation", description = "Mandatory traffic probes verify gateway integrity before any data is routed through the tunnel.", scaleFactor = scaleFactor)
-                    FeatureRow(icon = Icons.Default.Bolt, title = "Dynamic Recovery", description = "Heuristic-based reconnection logic automatically switches to optimal gateways during network shifts.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.Language, title = "Censorship-Resistant", description = "Engineered to bypass DPI and protocol-based filtering.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.Security, title = "Hybrid Transports", description = "Support for MASQUE (HTTP/2 & HTTP/3), WireGuard, and cascaded tunnels.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.NetworkCheck, title = "Gateway Validation", description = "Verifies gateway health and integrity before routing any data.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.Bolt, title = "Fast Recovery", description = "Automatic reconnection logic that adapts to network changes.", scaleFactor = scaleFactor)
                 }
             }
             item {
                 AboutInfoCard(
                     icon = Icons.Default.Memory,
                     iconColor = Color(0xFFAF52DE),
-                    title = "Native Engine: HEV Tunnel",
+                    title = "Native HEV Stack",
                     scaleFactor = scaleFactor
                 ) {
                     Text(
-                        text = "The HEV SOCKS5 Tunnel is the critical high-speed link between the Android system's virtual network interface (TUN) and the Aether proxy core. Built using a specialized native user-space network stack, it provides near-zero overhead translation of device-wide IP packets into SOCKS5 sessions. This native implementation drastically reduces CPU cycles and memory usage compared to high-level bridges.",
+                        text = "The HEV engine is a specialized SOCKS5 tunnel that bridges Android's TUN interface with the Aether core. Written in C, it provides a high-performance native network stack with minimal overhead, reducing battery and CPU usage.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = IosSecondaryLabel,
                         lineHeight = (22 * scaleFactor).sp,
                         fontSize = (14 * scaleFactor).sp
                     )
                     Spacer(modifier = Modifier.height((14 * scaleFactor).dp))
-                    FeatureRow(icon = Icons.Default.SwapVert, title = "Full-Stack Interception", description = "Seamlessly handles TCP, UDP, and DNS traffic across the entire Android operating system.", scaleFactor = scaleFactor)
-                    FeatureRow(icon = Icons.Default.Bolt, title = "C-Native Performance", description = "Leverages low-level optimizations to ensure maximum throughput with minimal battery drain.", scaleFactor = scaleFactor)
-                    FeatureRow(icon = Icons.Default.Security, title = "Verified Reliability", description = "Integrated from the industry-standard hev-socks5-tunnel for mission-critical stability.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.SwapVert, title = "System-wide Proxy", description = "Efficiently handles TCP, UDP, and DNS traffic across the device.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.Bolt, title = "Native Efficiency", description = "Low-level C implementation for maximum throughput and efficiency.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.Security, title = "Core Reliability", description = "Based on the industry-standard hev-socks5-tunnel stack.", scaleFactor = scaleFactor)
+                }
+            }
+            item {
+                AboutInfoCard(
+                    icon = Icons.Default.Router,
+                    iconColor = Color(0xFFFF9500),
+                    title = "SocksTunBridge (Kotlin)",
+                    scaleFactor = scaleFactor
+                ) {
+                    Text(
+                        text = "SocksTunBridge is a custom Kotlin-based bridge that manages traffic between the system TUN and the proxy core. It acts as a reliable alternative to native engines, focusing on high compatibility and seamless flow control without needing external native libraries.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IosSecondaryLabel,
+                        lineHeight = (22 * scaleFactor).sp,
+                        fontSize = (14 * scaleFactor).sp
+                    )
+                    Spacer(modifier = Modifier.height((14 * scaleFactor).dp))
+                    FeatureRow(icon = Icons.Default.Layers, title = "Pure Kotlin Core", description = "A modern implementation designed for stability and easy debugging.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.SettingsEthernet, title = "Flow Control", description = "Manages TCP and UDP streams with precise mapping and error handling.", scaleFactor = scaleFactor)
+                    FeatureRow(icon = Icons.Default.Tune, title = "High Compatibility", description = "Ensures stable performance across all modern Android versions.", scaleFactor = scaleFactor)
                 }
             }
             item {
                 AboutInfoCard(
                     icon = Icons.Default.Code,
                     iconColor = IosActiveBlue,
-                    title = "Open Source & Community",
+                    title = "Dev Links & Source",
                     scaleFactor = scaleFactor
                 ) {
                     AboutLinkCard(
-                        title = "Lead Developer",
-                        subtitle = "Follow immaghzbad for updates and new releases",
+                        title = "Project Maintainer",
+                        subtitle = "Where I push my code and track new features.",
                         url = UserGithubUrl,
                         urlColor = Color.White,
                         onClick = { uriHandler.openUri(UserGithubUrl) },
@@ -143,8 +163,8 @@ fun AboutUsScreen(
                     )
                     Spacer(modifier = Modifier.height((8 * scaleFactor).dp))
                     AboutLinkCard(
-                        title = "Official Community",
-                        subtitle = "Join the PowerSigma Telegram channel for support",
+                        title = "Telegram Channel",
+                        subtitle = "Telegram channel for support, chat, and dev updates.",
                         url = DeveloperTelegramUrl,
                         urlColor = Color(0xFF2AABEE),
                         onClick = { uriHandler.openUri(DeveloperTelegramUrl) },
@@ -152,8 +172,8 @@ fun AboutUsScreen(
                     )
                     Spacer(modifier = Modifier.height((8 * scaleFactor).dp))
                     AboutLinkCard(
-                        title = "Aether Core Source",
-                        subtitle = "Browse the main tunnel logic on GitHub",
+                        title = "Aether Repository",
+                        subtitle = "The engine's source code and protocol implementation.",
                         url = AetherRepositoryUrl,
                         urlColor = IosActiveBlue,
                         onClick = { uriHandler.openUri(AetherRepositoryUrl) },
@@ -161,8 +181,8 @@ fun AboutUsScreen(
                     )
                     Spacer(modifier = Modifier.height((8 * scaleFactor).dp))
                     AboutLinkCard(
-                        title = "HEV Engine Source",
-                        subtitle = "Explore the native network stack implementation",
+                        title = "HEV Stack Source",
+                        subtitle = "Native C implementation of the TUN-to-SOCKS bridge.",
                         url = HevRepositoryUrl,
                         urlColor = Color(0xFFAF52DE),
                         onClick = { uriHandler.openUri(HevRepositoryUrl) },
@@ -253,9 +273,9 @@ private fun AboutHero(scaleFactor: Float = 1f) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy((8 * scaleFactor).dp)
                     ) {
-                        VersionText(label = "App", value = "1.1.0", color = IosActiveBlue, scaleFactor = scaleFactor)
+                        VersionText(label = "App", value = "1.2.0", color = IosActiveBlue, scaleFactor = scaleFactor)
                         Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = (12 * scaleFactor).sp)
-                        VersionText(label = "Aether", value = "1.4.0", color = IosActiveGreen, scaleFactor = scaleFactor)
+                        VersionText(label = "Aether", value = "1.5.0", color = IosActiveGreen, scaleFactor = scaleFactor)
                         Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = (12 * scaleFactor).sp)
                         VersionText(label = "Hev", value = "2.15.0", color = Color(0xFFAF52DE), scaleFactor = scaleFactor)
                     }

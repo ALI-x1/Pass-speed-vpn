@@ -56,7 +56,7 @@ A specialized nested WireGuard configuration (Nested WireGuard). By wrapping one
 
 ## 🏗️ Technical Architecture
 
-### [Aether Core (v1.4.0)](https://github.com/CluvexStudio/Aether)
+### [Aether Core (v1.5.0)](https://github.com/CluvexStudio/Aether)
 The orchestration layer responsible for:
 - Encrypted tunnel management.
 - Dynamic gateway health checks.
