@@ -85,7 +85,7 @@ data class AetherConfig(
     val socksPort: String = "1819",
     val httpPort: String = "1820",
     val appLogLevel: AetherLogLevel = AetherLogLevel.INFO,
-    val coreLogLevel: AetherLogLevel = AetherLogLevel.OFF,
+    val coreLogLevel: AetherLogLevel = AetherLogLevel.INFO,
     val peer: String = "",
     val keepalive: Int = 5,
     val validateSecs: Int = 10,
@@ -110,5 +110,6 @@ data class AetherConfig(
     val reconnectRetryLimit: Int = 10,
     val strictKillSwitch: Boolean = false,
     val dnsList: String = "1.1.1.1,1.0.0.1",
-    val shareHotspot: Boolean = false
+    val shareHotspot: Boolean = false,
+    val tunnelAllApps: Boolean = true
 )

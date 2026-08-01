@@ -13,7 +13,6 @@ import io.github.immaghzbad.aetherst.model.AetherNoise
 import io.github.immaghzbad.aetherst.model.AetherProtocol
 import io.github.immaghzbad.aetherst.model.AetherScanMode
 import io.github.immaghzbad.aetherst.model.ConnectionMode
-import io.github.immaghzbad.aetherst.model.RoutingMode
 import io.github.immaghzbad.aetherst.model.RoutingRule
 import io.github.immaghzbad.aetherst.model.TunnelEngine
 import io.github.immaghzbad.aetherst.model.OnboardingStep
@@ -54,7 +53,23 @@ class AetherConfigRepository private constructor(context: Context) {
     }
 
     private fun loadConfig(): AetherConfig {
+        migrateCoreLoggingDefault()
         return readFromPrefs("")
+    }
+
+    private fun migrateCoreLoggingDefault() {
+        if (prefs.getBoolean("core_logging_default_v2", false)) return
+        val current = prefs.getString("core_log_level", null)
+        val manual = prefs.getString("manual_core_log_level", null)
+        prefs.edit {
+            if (current == null || current == AetherLogLevel.OFF.name) {
+                putString("core_log_level", AetherLogLevel.INFO.name)
+            }
+            if (manual == null || manual == AetherLogLevel.OFF.name) {
+                putString("manual_core_log_level", AetherLogLevel.INFO.name)
+            }
+            putBoolean("core_logging_default_v2", true)
+        }
     }
 
     private fun loadManualConfig(): AetherConfig {
@@ -67,7 +82,7 @@ class AetherConfigRepository private constructor(context: Context) {
         val scanModeStr = prefs.getString("${prefix}scan_mode", AetherScanMode.BALANCED.name) ?: AetherScanMode.BALANCED.name
         val ipModeStr = prefs.getString("${prefix}ip_mode", AetherIpMode.IPV4.name) ?: AetherIpMode.IPV4.name
         val appLogLevelStr = prefs.getString("${prefix}app_log_level", AetherLogLevel.INFO.name) ?: AetherLogLevel.INFO.name
-        val coreLogLevelStr = prefs.getString("${prefix}core_log_level", AetherLogLevel.OFF.name) ?: AetherLogLevel.OFF.name
+        val coreLogLevelStr = prefs.getString("${prefix}core_log_level", AetherLogLevel.INFO.name) ?: AetherLogLevel.INFO.name
         val tunnelEngineStr = prefs.getString("${prefix}tunnel_engine", TunnelEngine.HEV_TUN2SOCKS.name) ?: TunnelEngine.HEV_TUN2SOCKS.name
         val connectionModeStr = prefs.getString("${prefix}connection_mode", null)
         val legacyProxyOnly = prefs.getBoolean("${prefix}proxy_only", false)
@@ -99,7 +114,7 @@ class AetherConfigRepository private constructor(context: Context) {
             socksPort = prefs.getString("${prefix}socks_port", "1819") ?: "1819",
             httpPort = prefs.getString("${prefix}http_port", "1820") ?: "1820",
             appLogLevel = runCatching { AetherLogLevel.valueOf(appLogLevelStr) }.getOrDefault(AetherLogLevel.INFO),
-            coreLogLevel = runCatching { AetherLogLevel.valueOf(coreLogLevelStr) }.getOrDefault(AetherLogLevel.OFF),
+            coreLogLevel = runCatching { AetherLogLevel.valueOf(coreLogLevelStr) }.getOrDefault(AetherLogLevel.INFO),
             peer = prefs.getString("${prefix}peer", "") ?: "",
             keepalive = prefs.getInt("${prefix}keepalive", 5),
             validateSecs = prefs.getInt("${prefix}validate_secs", 10),
@@ -113,8 +128,6 @@ class AetherConfigRepository private constructor(context: Context) {
             blockedPackages = prefs.getStringSet("${prefix}blocked_packages", emptySet()) ?: emptySet(),
             routingRules = prefs.getString("${prefix}routing_rules", null)?.let {
                 runCatching { routingRulesAdapter.fromJson(it) }.getOrNull()
-            }?.map {
-                if (it.mode == RoutingMode.DIRECT) it.copy(mode = RoutingMode.TUNNEL) else it
             } ?: emptyList(),
             teamName = prefs.getString("${prefix}team_name", "") ?: "",
             accessEmail = prefs.getString("${prefix}access_email", "") ?: "",
@@ -128,7 +141,8 @@ class AetherConfigRepository private constructor(context: Context) {
             reconnectRetryLimit = prefs.getInt("${prefix}reconnect_retry_limit", 10),
             strictKillSwitch = prefs.getBoolean("${prefix}strict_kill_switch", false),
             dnsList = prefs.getString("${prefix}dns_list", "1.1.1.1,1.0.0.1") ?: "1.1.1.1,1.0.0.1",
-            shareHotspot = prefs.getBoolean("${prefix}share_hotspot", false)
+            shareHotspot = prefs.getBoolean("${prefix}share_hotspot", false),
+            tunnelAllApps = prefs.getBoolean("${prefix}tunnel_all_apps", true)
         )
     }
 
@@ -208,6 +222,7 @@ class AetherConfigRepository private constructor(context: Context) {
             putBoolean("${prefix}strict_kill_switch", cfg.strictKillSwitch)
             putString("${prefix}dns_list", cfg.dnsList)
             putBoolean("${prefix}share_hotspot", cfg.shareHotspot)
+            putBoolean("${prefix}tunnel_all_apps", cfg.tunnelAllApps)
         }
     }
 

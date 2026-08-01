@@ -29,7 +29,7 @@ object LogRepository {
     @Volatile
     var currentAppLogLevel: AetherLogLevel = AetherLogLevel.INFO
     @Volatile
-    var currentCoreLogLevel: AetherLogLevel = AetherLogLevel.OFF
+    var currentCoreLogLevel: AetherLogLevel = AetherLogLevel.INFO
 
     private val timeFormatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -94,7 +94,7 @@ object LogRepository {
         )
         synchronized(this) {
             val current = _logs.value.toMutableList()
-            if (current.size >= 250) {
+            if (current.size >= 1000) {
                 current.removeAt(0)
             }
             current.add(entry)
