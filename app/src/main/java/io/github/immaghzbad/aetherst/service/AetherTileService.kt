@@ -10,7 +10,7 @@ import android.service.quicksettings.TileService
 import io.github.immaghzbad.aetherst.MainActivity
 import io.github.immaghzbad.aetherst.R
 import io.github.immaghzbad.aetherst.data.AetherConfigRepository
-import io.github.immaghzbad.aetherst.model.ConnectionState
+import io.github.immaghzbad.aetherst.model.ConnectionStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,8 +43,8 @@ class AetherTileService : TileService() {
         }
 
         when (AetherVpnService.serviceState.value) {
-            ConnectionState.CONNECTED -> AetherVpnService.stopVpn(this)
-            ConnectionState.DISCONNECTED, ConnectionState.ERROR -> AetherVpnService.startVpn(this)
+            ConnectionStatus.RUNNING -> AetherVpnService.stopVpn(this)
+            ConnectionStatus.STOPPED, ConnectionStatus.ERROR -> AetherVpnService.startVpn(this)
             else -> Unit
         }
     }
@@ -65,18 +65,18 @@ class AetherTileService : TileService() {
         }
     }
 
-    private fun updateTile(state: ConnectionState) {
+    private fun updateTile(state: ConnectionStatus) {
         val tile = qsTile ?: return
         tile.icon = Icon.createWithResource(this, R.drawable.ic_stat_aether)
         
         when (state) {
-            ConnectionState.CONNECTED -> {
+            ConnectionStatus.RUNNING -> {
                 tile.state = Tile.STATE_ACTIVE
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     tile.subtitle = "Connected"
                 }
             }
-            ConnectionState.DISCONNECTED, ConnectionState.ERROR -> {
+            ConnectionStatus.STOPPED, ConnectionStatus.ERROR -> {
                 tile.state = Tile.STATE_INACTIVE
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     tile.subtitle = "Disconnected"
