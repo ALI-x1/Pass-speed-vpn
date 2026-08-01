@@ -2,6 +2,8 @@ package io.github.immaghzbad.aetherst.core
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -15,6 +17,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -82,6 +85,7 @@ class SocksTunBridge(
     private val tcpSessions = ConcurrentHashMap<FlowKey, TcpSession>()
     private val udpSessions = ConcurrentHashMap<FlowKey, UdpSession>()
     private val connectivityManager by lazy { vpnService.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
+    private val connectionOwnerResolver by lazy { ConnectionOwnerResolver(connectivityManager) }
     private val packageManager by lazy { vpnService.packageManager }
     private val txBytes = AtomicLong(0)
     private val rxBytes = AtomicLong(0)
@@ -462,8 +466,35 @@ class SocksTunBridge(
     }
 
     private fun ownerUid(protocol: Int, local: InetSocketAddress, remote: InetSocketAddress): Int {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return -1
-        return runCatching { connectivityManager.getConnectionOwnerUid(protocol, local, remote) }.getOrDefault(-1)
+        return connectionOwnerResolver.resolve(protocol, local, remote)
+    }
+
+    private fun underlyingNetwork(): Network? {
+        val candidates = connectivityManager.allNetworks.filter { network ->
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return@filter false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+        }
+        return candidates.firstOrNull { network ->
+            connectivityManager.getNetworkCapabilities(network)
+                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        } ?: candidates.firstOrNull()
+    }
+
+    private fun supportsIpv6(network: Network): Boolean {
+        return connectivityManager.getLinkProperties(network)?.routes?.any { route ->
+            route.isDefaultRoute && route.destination.address is Inet6Address
+        } == true
+    }
+
+    private fun networkLabel(network: Network): String {
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return "physical"
+        return when {
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+            else -> "physical"
+        }
     }
 
     private fun isUidBlocked(uid: Int): Boolean {
@@ -481,9 +512,15 @@ class SocksTunBridge(
             } else {
                 val uids = mutableSetOf<Int>()
                 for (pkg in packages) {
-                    runCatching { packageManager.getApplicationInfo(pkg, 0).uid }
-                        .getOrNull()
-                        ?.let { uids.add(it) }
+                    val uid = runCatching {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            packageManager.getApplicationInfo(pkg, android.content.pm.PackageManager.ApplicationInfoFlags.of(0)).uid
+                        } else {
+                            @Suppress("DEPRECATION")
+                            packageManager.getApplicationInfo(pkg, 0).uid
+                        }
+                    }.getOrNull()
+                    if (uid != null) uids.add(uid)
                 }
                 cachedBlockedPackages = packages
                 cachedBlockedUids = uids
@@ -604,6 +641,29 @@ class SocksTunBridge(
                     }
                 }
 
+                val requestedDirect = decision.mode == io.github.immaghzbad.aetherst.model.RoutingMode.DIRECT
+                val directNetwork = if (requestedDirect) underlyingNetwork() else null
+                val useDirect = requestedDirect && directNetwork != null && (version == 4 || supportsIpv6(directNetwork))
+
+                if (decision.matchedRule != null) {
+                    if (requestedDirect && !useDirect) {
+                        LogRepository.i("[Routing] DIRECT_REJECTED domain=${decision.resolvedDomain ?: "unknown"} ip=$targetIpStr protocol=TCP reason=no_underlying_route")
+                    } else {
+                        LogRepository.i("[Routing] ${decision.mode.name} domain=${decision.resolvedDomain ?: "unknown"} ip=$targetIpStr protocol=TCP")
+                    }
+                }
+
+                if (requestedDirect && !useDirect) {
+                    val rst = if (version == 4) {
+                        buildTcp4(bytesToInt(serverIp), bytesToInt(clientIp), serverPort, clientPort, null, mySeq.get(), myAck.get(), 0x14)
+                    } else {
+                        buildTcp6(serverIp, clientIp, serverPort, clientPort, null, mySeq.get(), myAck.get(), 0x14)
+                    }
+                    enqueueTun(rst, true)
+                    close()
+                    return
+                }
+
                 if (decision.mode == io.github.immaghzbad.aetherst.model.RoutingMode.BLOCK) {
                     if (synAckSent) {
                         val rst = if (version == 4) {
@@ -619,7 +679,6 @@ class SocksTunBridge(
 
                 val s = Socket()
                 sock = s
-                runCatching { vpnService.protect(s) }
                 s.tcpNoDelay = true
                 s.keepAlive = true
                 s.receiveBufferSize = 262144
@@ -628,11 +687,17 @@ class SocksTunBridge(
                 val ins: InputStream
                 val out: OutputStream
                 
-                if (false) {
+                if (useDirect) {
+                    val network = requireNotNull(directNetwork)
+                    network.bindSocket(s)
                     s.connect(InetSocketAddress(targetIpStr, serverPort), 5000)
                     ins = s.getInputStream()
                     out = BufferedOutputStream(s.getOutputStream(), 131072)
+                    val directNetworkType = networkLabel(network)
+                    LogRepository.i("[Routing] DIRECT_CONNECTED domain=${decision.resolvedDomain ?: "unknown"} ip=$targetIpStr via=$directNetworkType local=${s.localAddress.hostAddress}")
+                    DirectRouteVerifier.verify(decision.resolvedDomain ?: targetIpStr, network, directNetworkType)
                 } else {
+                    runCatching { vpnService.protect(s) }
                     s.connect(InetSocketAddress(socksHost, socksPort), 5000)
                     ins = s.getInputStream()
                     out = BufferedOutputStream(s.getOutputStream(), 131072)
@@ -691,7 +756,10 @@ class SocksTunBridge(
                         runCatching { sock?.shutdownOutput() }
                     }
                 }
-            } catch (_: Exception) {
+            } catch (exception: Exception) {
+                if (isRunning.get() && !isClosed.get()) {
+                    LogRepository.w("[Routing] TCP session failed: ${exception.localizedMessage}")
+                }
             } finally {
                 close()
             }
@@ -775,7 +843,27 @@ class SocksTunBridge(
                 val targetDomain = DnsMap.get(targetIpStr)
                 
                 val decision = routingEngine.resolve(targetIpStr, serverPort, targetDomain, null, null)
-                val isDirect = false
+                val requestedDirect = decision.mode == io.github.immaghzbad.aetherst.model.RoutingMode.DIRECT
+                val directNetwork = if (requestedDirect) underlyingNetwork() else null
+                val isDirect = requestedDirect && directNetwork != null && (version == 4 || supportsIpv6(directNetwork))
+
+                if (serverPort == 443 && targetDomain == null && routingEngine.hasDomainRules()) {
+                    close()
+                    return
+                }
+
+                if (decision.matchedRule != null) {
+                    if (requestedDirect && !isDirect) {
+                        LogRepository.i("[Routing] DIRECT_REJECTED domain=${decision.resolvedDomain ?: "unknown"} ip=$targetIpStr protocol=UDP reason=no_underlying_route")
+                    } else {
+                        LogRepository.i("[Routing] ${decision.mode.name} domain=${decision.resolvedDomain ?: "unknown"} ip=$targetIpStr protocol=UDP")
+                    }
+                }
+
+                if (requestedDirect && !isDirect) {
+                    close()
+                    return
+                }
                 
                 if (decision.mode == io.github.immaghzbad.aetherst.model.RoutingMode.BLOCK) {
                     close()
@@ -811,10 +899,18 @@ class SocksTunBridge(
 
                 val relaySocket = DatagramSocket()
                 udpSock = relaySocket
-                runCatching { vpnService.protect(relaySocket) }
+                if (isDirect) {
+                    val network = requireNotNull(directNetwork)
+                    network.bindSocket(relaySocket)
+                    val directNetworkType = networkLabel(network)
+                    LogRepository.i("[Routing] DIRECT_UDP_BOUND domain=${decision.resolvedDomain ?: "unknown"} ip=$targetIpStr via=$directNetworkType")
+                    DirectRouteVerifier.verify(decision.resolvedDomain ?: targetIpStr, network, directNetworkType)
+                } else {
+                    runCatching { vpnService.protect(relaySocket) }
+                }
                 relaySocket.soTimeout = 10000
 
-                executor.execute { receiveFromSocks(relaySocket) }
+                executor.execute { receiveFromNetwork(relaySocket, isDirect) }
 
                 val relayAddress = InetSocketAddress(relayHost, relayPort)
 
@@ -841,40 +937,45 @@ class SocksTunBridge(
                     relaySocket.send(DatagramPacket(full, full.size, relayAddress))
                     lastActivity.set(SystemClock.elapsedRealtime())
                 }
-            } catch (_: Exception) {
+            } catch (exception: Exception) {
+                if (isRunning.get() && !isClosed.get()) {
+                    LogRepository.w("[Routing] UDP session failed: ${exception.localizedMessage}")
+                }
             } finally {
                 close()
             }
         }
 
-        private fun receiveFromSocks(sock: DatagramSocket) {
+        private fun receiveFromNetwork(sock: DatagramSocket, direct: Boolean) {
             try {
                 val buf = ByteArray(65535)
                 val maxPayload = if (version == 4) (mtu - 28).coerceAtLeast(8) else (mtu - 48).coerceAtLeast(8)
 
                 while (!isClosed.get() && isRunning.get()) {
                     try {
-                        val p = DatagramPacket(buf, buf.size)
-                        sock.receive(p)
+                        val packet = DatagramPacket(buf, buf.size)
+                        sock.receive(packet)
                         lastActivity.set(SystemClock.elapsedRealtime())
 
-                        val srcAddress: InetAddress
-                        val srcPort: Int
+                        val source: SocksAddress
                         val payload: ByteArray
-                        
-                        val parsed = parseSocksUdp(p.data, p.length) ?: continue
-                        srcAddress = parsed.first.address
-                        srcPort = parsed.first.port
-                        payload = parsed.second
+                        if (direct) {
+                            source = SocksAddress(packet.address, packet.port)
+                            payload = packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
+                        } else {
+                            val parsed = parseSocksUdp(packet.data, packet.length) ?: continue
+                            source = parsed.first
+                            payload = parsed.second
+                        }
 
                         if (payload.size > maxPayload) continue
-
-                        val srcBytes = srcAddress.address
+                        if (source.port == 53) sniffDnsResponse(payload)
+                        val srcBytes = source.address.address
 
                         if (version == 4 && srcBytes.size == 4) {
-                            enqueueTun(buildUdp4(bytesToInt(srcBytes), bytesToInt(clientIp), srcPort, clientPort, payload))
+                            enqueueTun(buildUdp4(bytesToInt(srcBytes), bytesToInt(clientIp), source.port, clientPort, payload))
                         } else if (version == 6 && srcBytes.size == 16) {
-                            enqueueTun(buildUdp6(srcBytes, clientIp, srcPort, clientPort, payload))
+                            enqueueTun(buildUdp6(srcBytes, clientIp, source.port, clientPort, payload))
                         }
                     } catch (_: SocketTimeoutException) {
                         if (SystemClock.elapsedRealtime() - lastActivity.get() > 60000) break
