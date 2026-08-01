@@ -4,7 +4,7 @@ import android.content.Context
 import io.github.immaghzbad.aetherst.data.LogRepository
 import io.github.immaghzbad.aetherst.model.AetherConfig
 import io.github.immaghzbad.aetherst.model.AetherProtocol
-import io.github.immaghzbad.aetherst.model.ConnectionState
+import io.github.immaghzbad.aetherst.model.ConnectionStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,8 +36,8 @@ class AetherProcessRunner(private val context: Context) {
     private val currentAttemptId = AtomicLong(0)
     private var goolOuterValidated = false
 
-    private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
-    val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+    private val _connectionStatus = MutableStateFlow(ConnectionStatus.STOPPED)
+    val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
     fun start(config: AetherConfig, bindAddress: String, onCodeRequired: () -> Unit = {}, inputProvider: suspend () -> String = { "" }) {
         synchronized(lock) {
@@ -50,18 +50,18 @@ class AetherProcessRunner(private val context: Context) {
                 while (isActive && (currentAttemptId.get() == attemptId)) {
                     if (config.smartReconnect && (retryCount >= config.reconnectRetryLimit)) {
                         LogRepository.e("Smart Reconnect limit reached ($retryCount). Stopping...")
-                        updateState(ConnectionState.ERROR, attemptId)
+                        updateState(ConnectionStatus.ERROR, attemptId)
                         break
                     }
 
                     if (retryCount > 0) {
                         val waitTime = (retryCount * 1000L).coerceAtMost(10000L)
                         LogRepository.i("Recovering connection (Retry $retryCount)...")
-                        updateState(ConnectionState.RECONNECTING, attemptId)
+                        updateState(ConnectionStatus.RECONNECTING, attemptId)
                         delay(waitTime.milliseconds)
                     } else {
                         LogRepository.i("Starting system core...")
-                        updateState(ConnectionState.SCANNING, attemptId)
+                        updateState(ConnectionStatus.STARTING, attemptId)
                     }
 
                     if (currentAttemptId.get() != attemptId) break
@@ -80,7 +80,7 @@ class AetherProcessRunner(private val context: Context) {
                     }
 
                     retryCount++
-                    if (connectionState.value == ConnectionState.CONNECTED) {
+                    if (connectionStatus.value == ConnectionStatus.RUNNING) {
                         retryCount = 1
                     }
                 }
@@ -319,16 +319,16 @@ class AetherProcessRunner(private val context: Context) {
         when {
             lower.contains("scanning") -> {
                 goolOuterValidated = false
-                updateState(ConnectionState.SCANNING, attemptId)
+                updateState(ConnectionStatus.STARTING, attemptId)
             }
-            lower.contains("validating") -> updateState(ConnectionState.VALIDATING, attemptId)
+            lower.contains("validating") -> updateState(ConnectionStatus.VALIDATING, attemptId)
 
             protocol == AetherProtocol.MASQUE && lower.contains("tunnel validated (end-to-end data confirmed)") -> {
-                updateState(ConnectionState.CONNECTED, attemptId)
+                updateState(ConnectionStatus.RUNNING, attemptId)
             }
 
             protocol == AetherProtocol.WG && lower.contains("wireguard tunnel validated") -> {
-                updateState(ConnectionState.CONNECTED, attemptId)
+                updateState(ConnectionStatus.RUNNING, attemptId)
             }
 
             protocol == AetherProtocol.GOOL -> {
@@ -336,31 +336,31 @@ class AetherProcessRunner(private val context: Context) {
                     goolOuterValidated = true
                 }
                 if (lower.contains("inner") && lower.contains("tunnel validated") && goolOuterValidated) {
-                    updateState(ConnectionState.CONNECTED, attemptId)
+                    updateState(ConnectionStatus.RUNNING, attemptId)
                 }
             }
 
             protocol != AetherProtocol.MASQUE && protocol != AetherProtocol.WG && protocol != AetherProtocol.GOOL &&
             (lower.contains("tunnel validated") || lower.contains("connect-ip status: 200")) -> {
-                updateState(ConnectionState.CONNECTED, attemptId)
+                updateState(ConnectionStatus.RUNNING, attemptId)
             }
 
             lower.contains("reconnecting") || isLost -> {
                 goolOuterValidated = false
-                updateState(ConnectionState.RECONNECTING, attemptId)
+                updateState(ConnectionStatus.RECONNECTING, attemptId)
             }
             isCriticalError -> {
-                val current = _connectionState.value
-                if (current != ConnectionState.CONNECTED && current != ConnectionState.RECONNECTING) {
-                    updateState(ConnectionState.ERROR, attemptId)
+                val current = _connectionStatus.value
+                if (current != ConnectionStatus.RUNNING && current != ConnectionStatus.RECONNECTING) {
+                    updateState(ConnectionStatus.ERROR, attemptId)
                 }
             }
         }
     }
 
-    private fun updateState(state: ConnectionState, attemptId: Long = currentAttemptId.get()) {
+    private fun updateState(state: ConnectionStatus, attemptId: Long = currentAttemptId.get()) {
         if (currentAttemptId.get() == attemptId) {
-            _connectionState.value = state
+            _connectionStatus.value = state
         }
     }
 
@@ -404,7 +404,7 @@ class AetherProcessRunner(private val context: Context) {
 
     fun stop() {
         currentAttemptId.incrementAndGet()
-        _connectionState.value = ConnectionState.DISCONNECTED
+        _connectionStatus.value = ConnectionStatus.STOPPED
 
         var jobToCancel: Job? = null
         var procToDestroy: Process? = null

@@ -12,6 +12,7 @@ import io.github.immaghzbad.aetherst.model.AetherLogLevel
 import io.github.immaghzbad.aetherst.model.AetherNoise
 import io.github.immaghzbad.aetherst.model.AetherProtocol
 import io.github.immaghzbad.aetherst.model.AetherScanMode
+import io.github.immaghzbad.aetherst.model.ConnectionMode
 import io.github.immaghzbad.aetherst.model.RoutingMode
 import io.github.immaghzbad.aetherst.model.RoutingRule
 import io.github.immaghzbad.aetherst.model.TunnelEngine
@@ -68,6 +69,15 @@ class AetherConfigRepository private constructor(context: Context) {
         val appLogLevelStr = prefs.getString("${prefix}app_log_level", AetherLogLevel.INFO.name) ?: AetherLogLevel.INFO.name
         val coreLogLevelStr = prefs.getString("${prefix}core_log_level", AetherLogLevel.OFF.name) ?: AetherLogLevel.OFF.name
         val tunnelEngineStr = prefs.getString("${prefix}tunnel_engine", TunnelEngine.HEV_TUN2SOCKS.name) ?: TunnelEngine.HEV_TUN2SOCKS.name
+        val connectionModeStr = prefs.getString("${prefix}connection_mode", null)
+        val legacyProxyOnly = prefs.getBoolean("${prefix}proxy_only", false)
+        
+        val connectionMode = if (connectionModeStr != null) {
+            runCatching { ConnectionMode.valueOf(connectionModeStr) }.getOrDefault(ConnectionMode.TUNNEL)
+        } else {
+            if (legacyProxyOnly) ConnectionMode.PROXY_ONLY else ConnectionMode.TUNNEL
+        }
+
         val presetId = prefs.getString("${prefix}preset_id", "custom") ?: "custom"
 
         val socksHost = prefs.getString("${prefix}socks_host", "127.0.0.1") ?: "127.0.0.1"
@@ -87,6 +97,7 @@ class AetherConfigRepository private constructor(context: Context) {
             quickReconnect = prefs.getBoolean("${prefix}quick_reconnect", true),
             socksHost = cleanHost,
             socksPort = prefs.getString("${prefix}socks_port", "1819") ?: "1819",
+            httpPort = prefs.getString("${prefix}http_port", "1820") ?: "1820",
             appLogLevel = runCatching { AetherLogLevel.valueOf(appLogLevelStr) }.getOrDefault(AetherLogLevel.INFO),
             coreLogLevel = runCatching { AetherLogLevel.valueOf(coreLogLevelStr) }.getOrDefault(AetherLogLevel.OFF),
             peer = prefs.getString("${prefix}peer", "") ?: "",
@@ -96,7 +107,7 @@ class AetherConfigRepository private constructor(context: Context) {
             noProfileRetry = prefs.getBoolean("${prefix}no_profile_retry", false),
             tlsGroups = prefs.getString("${prefix}tls_groups", "") ?: "",
             mtu = prefs.getInt("${prefix}mtu", 1100),
-            proxyOnly = prefs.getBoolean("${prefix}proxy_only", false),
+            connectionMode = connectionMode,
             tunnelEngine = runCatching { TunnelEngine.valueOf(tunnelEngineStr) }.getOrDefault(TunnelEngine.HEV_TUN2SOCKS),
             excludedPackages = prefs.getStringSet("${prefix}excluded_packages", emptySet()) ?: emptySet(),
             blockedPackages = prefs.getStringSet("${prefix}blocked_packages", emptySet()) ?: emptySet(),
@@ -116,17 +127,28 @@ class AetherConfigRepository private constructor(context: Context) {
             smartReconnect = prefs.getBoolean("${prefix}smart_reconnect", true),
             reconnectRetryLimit = prefs.getInt("${prefix}reconnect_retry_limit", 10),
             strictKillSwitch = prefs.getBoolean("${prefix}strict_kill_switch", false),
-            dnsList = prefs.getString("${prefix}dns_list", "1.1.1.1,1.0.0.1") ?: "1.1.1.1,1.0.0.1"
+            dnsList = prefs.getString("${prefix}dns_list", "1.1.1.1,1.0.0.1") ?: "1.1.1.1,1.0.0.1",
+            shareHotspot = prefs.getBoolean("${prefix}share_hotspot", false)
         )
     }
 
     fun updateConfig(newConfig: AetherConfig) {
+        val oldConfig = _config.value
         val manualConfig = newConfig.copy(presetId = "custom")
-        saveToPrefs("", manualConfig)
-        saveToPrefs("manual_", manualConfig)
-        LogRepository.currentAppLogLevel = manualConfig.appLogLevel
-        LogRepository.currentCoreLogLevel = manualConfig.coreLogLevel
-        _config.value = manualConfig
+        
+        val finalConfig = if (oldConfig.protocol != manualConfig.protocol) {
+            saveProtocolSettings(oldConfig)
+            loadProtocolSettings(manualConfig.protocol, manualConfig)
+        } else {
+            saveProtocolSettings(manualConfig)
+            manualConfig
+        }
+
+        saveToPrefs("", finalConfig)
+        saveToPrefs("manual_", finalConfig)
+        LogRepository.currentAppLogLevel = finalConfig.appLogLevel
+        LogRepository.currentCoreLogLevel = finalConfig.coreLogLevel
+        _config.value = finalConfig
     }
 
     fun setOnboardingComplete(complete: Boolean) {
@@ -158,6 +180,7 @@ class AetherConfigRepository private constructor(context: Context) {
             putBoolean("${prefix}quick_reconnect", cfg.quickReconnect)
             putString("${prefix}socks_host", cfg.socksHost)
             putString("${prefix}socks_port", cfg.socksPort)
+            putString("${prefix}http_port", cfg.httpPort)
             putString("${prefix}app_log_level", cfg.appLogLevel.name)
             putString("${prefix}core_log_level", cfg.coreLogLevel.name)
             putString("${prefix}peer", cfg.peer)
@@ -167,7 +190,7 @@ class AetherConfigRepository private constructor(context: Context) {
             putBoolean("${prefix}no_profile_retry", cfg.noProfileRetry)
             putString("${prefix}tls_groups", cfg.tlsGroups)
             putInt("${prefix}mtu", cfg.mtu)
-            putBoolean("${prefix}proxy_only", cfg.proxyOnly)
+            putString("${prefix}connection_mode", cfg.connectionMode.name)
             putString("${prefix}tunnel_engine", cfg.tunnelEngine.name)
             putStringSet("${prefix}excluded_packages", cfg.excludedPackages)
             putStringSet("${prefix}blocked_packages", cfg.blockedPackages)
@@ -184,6 +207,7 @@ class AetherConfigRepository private constructor(context: Context) {
             putInt("${prefix}reconnect_retry_limit", cfg.reconnectRetryLimit)
             putBoolean("${prefix}strict_kill_switch", cfg.strictKillSwitch)
             putString("${prefix}dns_list", cfg.dnsList)
+            putBoolean("${prefix}share_hotspot", cfg.shareHotspot)
         }
     }
 
@@ -224,7 +248,7 @@ class AetherConfigRepository private constructor(context: Context) {
                 noDataCheck = false,
                 tlsGroups = "",
                 mtu = 1100,
-                proxyOnly = false
+                connectionMode = ConnectionMode.TUNNEL
             )
             "ironclad_stealth" -> current.copy(
                 presetId = "ironclad_stealth",
@@ -236,7 +260,7 @@ class AetherConfigRepository private constructor(context: Context) {
                 noDataCheck = false,
                 tlsGroups = "",
                 mtu = 1100,
-                proxyOnly = false
+                connectionMode = ConnectionMode.TUNNEL
             )
             "turbo_wg" -> current.copy(
                 presetId = "turbo_wg",
@@ -247,14 +271,81 @@ class AetherConfigRepository private constructor(context: Context) {
                 h2Mode = false,
                 h2Fragment = false,
                 mtu = 1100,
-                proxyOnly = false
+                connectionMode = ConnectionMode.TUNNEL
             )
             else -> current
         }
         LogRepository.i("Configuration profile applied: $presetId")
         saveToPrefs("", updated)
+        saveProtocolSettings(updated)
         LogRepository.currentAppLogLevel = updated.appLogLevel
         LogRepository.currentCoreLogLevel = updated.coreLogLevel
         _config.value = updated
+    }
+
+    private fun saveProtocolSettings(cfg: AetherConfig) {
+        val p = "protocol_${cfg.protocol.name}_"
+        prefs.edit {
+            putString("${p}noise", cfg.noise.name)
+            putString("${p}scan_mode", cfg.scanMode.name)
+            putString("${p}ip_mode", cfg.ipMode.name)
+            putBoolean("${p}h2_mode", cfg.h2Mode)
+            putBoolean("${p}h2_fragment", cfg.h2Fragment)
+            putString("${p}fragment_size", cfg.fragmentSize)
+            putString("${p}fragment_delay", cfg.fragmentDelay)
+            putBoolean("${p}no_data_check", cfg.noDataCheck)
+            putBoolean("${p}quick_reconnect", cfg.quickReconnect)
+            putString("${p}peer", cfg.peer)
+            putInt("${p}keepalive", cfg.keepalive)
+            putInt("${p}validate_secs", cfg.validateSecs)
+            putInt("${p}reconnect_secs", cfg.reconnectSecs)
+            putBoolean("${p}no_profile_retry", cfg.noProfileRetry)
+            putString("${p}tls_groups", cfg.tlsGroups)
+            putInt("${p}mtu", cfg.mtu)
+            putString("${p}team_name", cfg.teamName)
+            putString("${p}access_email", cfg.accessEmail)
+            putString("${p}access_id", cfg.accessId)
+            putString("${p}access_secret", cfg.accessSecret)
+            putString("${p}access_token", cfg.accessToken)
+            putBoolean("${p}use_gateway", cfg.useGateway)
+            putBoolean("${p}initialized", true)
+        }
+    }
+
+    private fun loadProtocolSettings(protocol: AetherProtocol, base: AetherConfig): AetherConfig {
+        val p = "protocol_${protocol.name}_"
+        if (!prefs.contains("${p}initialized")) {
+            return when (protocol) {
+                AetherProtocol.MASQUE -> base.copy(protocol = protocol, noise = AetherNoise.FIREWALL, scanMode = AetherScanMode.BALANCED)
+                AetherProtocol.WG -> base.copy(protocol = protocol, noise = AetherNoise.BALANCED, scanMode = AetherScanMode.TURBO, noDataCheck = true)
+                AetherProtocol.GOOL -> base.copy(protocol = protocol, noise = AetherNoise.BALANCED, scanMode = AetherScanMode.BALANCED)
+                AetherProtocol.ZERO_TRUST -> base.copy(protocol = protocol, noise = AetherNoise.OFF, scanMode = AetherScanMode.BALANCED)
+            }
+        }
+        return base.copy(
+            protocol = protocol,
+            noise = runCatching { AetherNoise.valueOf(prefs.getString("${p}noise", "")!!) }.getOrDefault(base.noise),
+            scanMode = runCatching { AetherScanMode.valueOf(prefs.getString("${p}scan_mode", "")!!) }.getOrDefault(base.scanMode),
+            ipMode = runCatching { AetherIpMode.valueOf(prefs.getString("${p}ip_mode", "")!!) }.getOrDefault(base.ipMode),
+            h2Mode = prefs.getBoolean("${p}h2_mode", true),
+            h2Fragment = prefs.getBoolean("${p}h2_fragment", false),
+            fragmentSize = prefs.getString("${p}fragment_size", "16-32") ?: "16-32",
+            fragmentDelay = prefs.getString("${p}fragment_delay", "2-10") ?: "2-10",
+            noDataCheck = prefs.getBoolean("${p}no_data_check", false),
+            quickReconnect = prefs.getBoolean("${p}quick_reconnect", true),
+            peer = prefs.getString("${p}peer", "") ?: "",
+            keepalive = prefs.getInt("${p}keepalive", 5),
+            validateSecs = prefs.getInt("${p}validate_secs", 10),
+            reconnectSecs = prefs.getInt("${p}reconnect_secs", 2),
+            noProfileRetry = prefs.getBoolean("${p}no_profile_retry", false),
+            tlsGroups = prefs.getString("${p}tls_groups", "") ?: "",
+            mtu = prefs.getInt("${p}mtu", 1100),
+            teamName = prefs.getString("${p}team_name", "") ?: "",
+            accessEmail = prefs.getString("${p}access_email", "") ?: "",
+            accessId = prefs.getString("${p}access_id", "") ?: "",
+            accessSecret = prefs.getString("${p}access_secret", "") ?: "",
+            accessToken = prefs.getString("${p}access_token", "") ?: "",
+            useGateway = prefs.getBoolean("${p}use_gateway", false)
+        )
     }
 }

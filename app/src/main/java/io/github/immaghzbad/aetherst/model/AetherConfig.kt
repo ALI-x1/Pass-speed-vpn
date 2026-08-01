@@ -43,13 +43,18 @@ enum class TunnelEngine(val displayName: String) {
     SOCKS_TUN_BRIDGE("SocksTunBridge")
 }
 
-enum class ConnectionState {
-    DISCONNECTED,
-    SCANNING,
+enum class ConnectionMode {
+    TUNNEL,
+    PROXY_ONLY
+}
+
+enum class ConnectionStatus {
+    STOPPED,
+    STARTING,
     VALIDATING,
-    CONNECTED,
+    RUNNING,
     RECONNECTING,
-    DISCONNECTING,
+    STOPPING,
     ERROR
 }
 
@@ -78,6 +83,7 @@ data class AetherConfig(
     val quickReconnect: Boolean = true,
     val socksHost: String = "127.0.0.1",
     val socksPort: String = "1819",
+    val httpPort: String = "1820",
     val appLogLevel: AetherLogLevel = AetherLogLevel.INFO,
     val coreLogLevel: AetherLogLevel = AetherLogLevel.OFF,
     val peer: String = "",
@@ -87,7 +93,7 @@ data class AetherConfig(
     val noProfileRetry: Boolean = false,
     val tlsGroups: String = "",
     val mtu: Int = 1100,
-    val proxyOnly: Boolean = false,
+    val connectionMode: ConnectionMode = ConnectionMode.TUNNEL,
     val tunnelEngine: TunnelEngine = TunnelEngine.HEV_TUN2SOCKS,
     val excludedPackages: Set<String> = emptySet(),
     val blockedPackages: Set<String> = emptySet(),
@@ -103,5 +109,6 @@ data class AetherConfig(
     val smartReconnect: Boolean = true,
     val reconnectRetryLimit: Int = 10,
     val strictKillSwitch: Boolean = false,
-    val dnsList: String = "1.1.1.1,1.0.0.1"
+    val dnsList: String = "1.1.1.1,1.0.0.1",
+    val shareHotspot: Boolean = false
 )
