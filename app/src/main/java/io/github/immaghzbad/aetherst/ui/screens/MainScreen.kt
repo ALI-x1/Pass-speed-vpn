@@ -16,11 +16,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -300,7 +297,21 @@ private fun DashboardContent(viewModel: AetherViewModel) {
         val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
 
         Box(modifier = Modifier.fillMaxSize()) {
-            Crossfade(targetState = if (showRoutingRules) 100 else if (showSplitTunneling) 99 else selectedTab, animationSpec = tween(400), label = "screen_transition") { tab ->
+            val targetScreen = if (showRoutingRules) 100 else if (showSplitTunneling) 99 else selectedTab
+            AnimatedContent(
+                targetState = targetScreen,
+                transitionSpec = {
+                    val duration = 350
+                    if (targetState > initialState) {
+                        (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it } + fadeIn(animationSpec = tween(duration)))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it / 2 } + fadeOut(animationSpec = tween(duration)))
+                    } else {
+                        (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it } + fadeIn(animationSpec = tween(duration)))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it / 2 } + fadeOut(animationSpec = tween(duration)))
+                    }
+                },
+                label = "screen_transition"
+            ) { tab ->
                 saveableStateHolder.SaveableStateProvider(tab) {
                     when (tab) {
                         0 -> DashboardScreen(
@@ -354,9 +365,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                             apps = installedApps,
                             excludedPackages = config.excludedPackages,
                             blockedPackages = config.blockedPackages,
-                            tunnelEngine = config.tunnelEngine,
                             onUpdateMode = { pkg, mode -> viewModel.updateAppSplitTunnelingMode(pkg, mode) },
-                            onShowToast = { msg, err -> viewModel.showToast(msg, err) },
                             onBack = { showSplitTunneling = false },
                             scaleFactor = scaleFactor
                         )

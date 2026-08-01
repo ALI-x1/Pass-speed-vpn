@@ -234,6 +234,7 @@ fun DashboardScreen(
             exit = slideOutVertically { -it } + fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .statusBarsPadding()
                 .padding(top = 12.dp)
                 .graphicsLayer { translationY = offsetY.value }
                 .pointerInput(Unit) {

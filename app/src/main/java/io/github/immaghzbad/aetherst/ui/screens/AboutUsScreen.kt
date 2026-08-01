@@ -292,7 +292,7 @@ private fun AboutHero(scaleFactor: Float = 1f) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy((8 * scaleFactor).dp)
                     ) {
-                        VersionText(label = "App", value = "1.3.0", color = IosActiveBlue, scaleFactor = scaleFactor)
+                        VersionText(label = "App", value = "1.4.0", color = IosActiveBlue, scaleFactor = scaleFactor)
                         Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = (12 * scaleFactor).sp)
                         VersionText(label = "Aether", value = "1.5.0", color = IosActiveGreen, scaleFactor = scaleFactor)
                         Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = (12 * scaleFactor).sp)

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
+import java.io.File
 import android.net.VpnService
 import android.os.PowerManager
 import android.os.SystemClock
@@ -31,7 +32,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -234,9 +234,8 @@ class AetherViewModel(context: Context) : ViewModel() {
         val current = config.value
         if (current.routingRules.any { it.pattern == pattern }) return
 
-        val finalMode = if (mode == RoutingMode.DIRECT) RoutingMode.TUNNEL else mode
-        val newList = current.routingRules + RoutingRule(pattern, finalMode)
-        LogRepository.i("Routing rule added: $pattern ($finalMode)")
+        val newList = current.routingRules + RoutingRule(pattern, mode)
+        LogRepository.i("Routing rule added: $pattern ($mode)")
         updateConfig(current.copy(routingRules = newList))
         restartVpnIfActive()
     }
@@ -253,13 +252,12 @@ class AetherViewModel(context: Context) : ViewModel() {
 
     fun updateRoutingRuleMode(pattern: String, mode: RoutingMode) {
         val current = config.value
-        val finalMode = if (mode == RoutingMode.DIRECT) RoutingMode.TUNNEL else mode
         val newList = current.routingRules.map {
-            if (it.pattern == pattern) it.copy(mode = finalMode) else it
+            if (it.pattern == pattern) it.copy(mode = mode) else it
         }
         if (newList == current.routingRules) return
 
-        LogRepository.i("Routing rule updated: $pattern -> $finalMode")
+        LogRepository.i("Routing rule updated: $pattern -> $mode")
         updateConfig(current.copy(routingRules = newList))
         restartVpnIfActive()
     }
@@ -381,6 +379,31 @@ class AetherViewModel(context: Context) : ViewModel() {
         return regex.matches(pattern)
     }
 
+    private fun normalizeImportedRoutingPattern(input: String): String {
+        val cleaned = cleanRoutingPattern(input)
+        return if (cleaned.startsWith("regexp:", ignoreCase = true)) {
+            "regexp:${cleaned.substringAfter(':')}"
+        } else {
+            cleaned.lowercase(Locale.ROOT)
+        }
+    }
+
+    private fun isValidImportedRoutingPattern(pattern: String): Boolean {
+        if (!isValidRoutingPattern(pattern)) return false
+        if (!pattern.startsWith("regexp:", ignoreCase = true)) return true
+        val expression = pattern.substringAfter(':')
+        return expression.isNotEmpty() && runCatching { Regex(expression) }.isSuccess
+    }
+
+    private fun routingPatternKey(pattern: String): String {
+        val cleaned = cleanRoutingPattern(pattern)
+        return if (cleaned.startsWith("regexp:", ignoreCase = true)) {
+            "regexp:${cleaned.substringAfter(':')}"
+        } else {
+            cleaned.lowercase(Locale.ROOT)
+        }
+    }
+
     fun exportRoutingRules(context: Context) {
         viewModelScope.launch {
             val rules = config.value.routingRules
@@ -410,10 +433,14 @@ class AetherViewModel(context: Context) : ViewModel() {
     fun importRoutingRules(uri: Uri, context: Context) {
         viewModelScope.launch {
             try {
-                val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                var fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                     val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
                     if (cursor.moveToFirst()) cursor.getString(nameIndex) else null
-                } ?: "file"
+                }
+                
+                if (fileName == null) {
+                    fileName = uri.path?.let { File(it).name } ?: "file"
+                }
 
                 if (!fileName.lowercase().endsWith(".astb")) {
                     _importErrorMessage.value = "Invalid file type. Please use .astb"
@@ -428,13 +455,18 @@ class AetherViewModel(context: Context) : ViewModel() {
                     return@launch
                 }
 
-                val newRules = mutableListOf<RoutingRule>()
+                val importedRulesByPattern = linkedMapOf<String, RoutingRule>()
                 for (i in lines.indices step 2) {
-                    val pattern = lines[i]
+                    val rawPattern = lines[i]
                     val modeLine = lines[i + 1]
 
-                    if (pattern.startsWith("-")) {
+                    if (rawPattern.startsWith("-")) {
                         _importErrorMessage.value = "Invalid format: Pattern expected at line ${i + 1}"
+                        return@launch
+                    }
+                    val pattern = normalizeImportedRoutingPattern(rawPattern)
+                    if (!isValidImportedRoutingPattern(pattern)) {
+                        _importErrorMessage.value = "Invalid pattern at line ${i + 1}"
                         return@launch
                     }
                     if (!modeLine.startsWith("-")) {
@@ -443,7 +475,7 @@ class AetherViewModel(context: Context) : ViewModel() {
                     }
 
                     val mode = when (val modeStr = modeLine.substring(1).lowercase()) {
-                        "direct" -> RoutingMode.TUNNEL
+                        "direct" -> RoutingMode.DIRECT
                         "block" -> RoutingMode.BLOCK
                         "tunnel" -> RoutingMode.TUNNEL
                         else -> {
@@ -451,16 +483,18 @@ class AetherViewModel(context: Context) : ViewModel() {
                             return@launch
                         }
                     }
-                    newRules.add(RoutingRule(pattern, mode))
+                    importedRulesByPattern[routingPatternKey(pattern)] = RoutingRule(pattern, mode)
                 }
 
+                val newRules = importedRulesByPattern.values.toList()
                 if (newRules.isEmpty()) {
                     _importErrorMessage.value = "Backup file is empty"
                     return@launch
                 }
 
                 val currentRules = config.value.routingRules
-                val hasConflict = newRules.any { nr -> currentRules.any { it.pattern == nr.pattern } }
+                val currentPatternKeys = currentRules.mapTo(mutableSetOf()) { routingPatternKey(it.pattern) }
+                val hasConflict = newRules.any { routingPatternKey(it.pattern) in currentPatternKeys }
 
                 if (hasConflict) {
                     _importConflictRules.value = newRules
@@ -520,8 +554,8 @@ class AetherViewModel(context: Context) : ViewModel() {
     private fun applyImport(newRules: List<RoutingRule>, merge: Boolean) {
         val current = config.value
         val finalRules = if (merge) {
-            val existingPatterns = current.routingRules.map { it.pattern }.toSet()
-            current.routingRules + newRules.filter { it.pattern !in existingPatterns }
+            val existingPatterns = current.routingRules.mapTo(mutableSetOf()) { routingPatternKey(it.pattern) }
+            current.routingRules + newRules.filter { routingPatternKey(it.pattern) !in existingPatterns }
         } else {
             newRules
         }

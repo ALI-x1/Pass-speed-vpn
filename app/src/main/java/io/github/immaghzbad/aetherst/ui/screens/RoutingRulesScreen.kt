@@ -1,6 +1,8 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
 import android.net.Uri
+import java.io.File
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -83,6 +85,25 @@ fun RoutingRulesScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
+    var showInternalButton by remember { mutableStateOf(false) }
+    var showInternalRulesDialog by remember { mutableStateOf(false) }
+    
+    val context = LocalContext.current
+    val importInternalAsset = { assetName: String ->
+        try {
+            val cacheFile = File(context.cacheDir, assetName)
+            context.assets.open(assetName).use { input ->
+                cacheFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            onImportRules(Uri.fromFile(cacheFile))
+            onShowToast("Rules imported from internal storage", false)
+            showInternalRulesDialog = false
+        } catch (e: Exception) {
+            onShowToast("Error: ${e.message}", true)
+        }
+    }
     
     var ruleToDelete by remember { mutableStateOf<String?>(null) }
     var showClearAllConfirmation by remember { mutableStateOf(false) }
@@ -123,6 +144,14 @@ fun RoutingRulesScreen(
     if (showHelpDialog) {
         RoutingRulesHelpDialog(
             onDismiss = { showHelpDialog = false },
+            scaleFactor = scaleFactor
+        )
+    }
+
+    if (showInternalRulesDialog) {
+        InternalRulesDialog(
+            onDismiss = { showInternalRulesDialog = false },
+            onImport = importInternalAsset,
             scaleFactor = scaleFactor
         )
     }
@@ -264,6 +293,20 @@ fun RoutingRulesScreen(
                     DropdownMenuItem(
                         text = { 
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Add, null, tint = IosActiveBlue, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Show More", color = Color.White, fontSize = 14.sp)
+                            }
+                        },
+                        onClick = {
+                            showMenu = false
+                            showInternalButton = true
+                        }
+                    )
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f), thickness = 0.5.dp)
+                    DropdownMenuItem(
+                        text = { 
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Delete, null, tint = Color(0xFFFF3B30), modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text("Delete All Rules", color = Color(0xFFFF3B30), fontSize = 14.sp)
@@ -313,6 +356,21 @@ fun RoutingRulesScreen(
             )
         }
 
+        if (showInternalButton) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = (16 * scaleFactor).dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(IosActiveBlue.copy(alpha = 0.15f))
+                    .clickable { showInternalRulesDialog = true }
+                    .padding(vertical = (10 * scaleFactor).dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Add Internal App Rules", color = IosActiveBlue, fontWeight = FontWeight.Bold, fontSize = (14 * scaleFactor).sp)
+            }
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -329,7 +387,6 @@ fun RoutingRulesScreen(
                     onUpdateMode = { onUpdateMode(rule.pattern, it) },
                     onEdit = { editingRule = rule },
                     onDelete = { ruleToDelete = rule.pattern },
-                    onShowToast = onShowToast,
                     scaleFactor = scaleFactor
                 )
             }
@@ -343,7 +400,6 @@ private fun RuleLineItem(
     onUpdateMode: (RoutingMode) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onShowToast: (String, Boolean) -> Unit,
     scaleFactor: Float
 ) {
     Column(
@@ -391,13 +447,7 @@ private fun RuleLineItem(
                         .weight(1f)
                         .clip(RoundedCornerShape((8 * scaleFactor).dp))
                         .background(if (isSelected) IosActiveBlue else Color.Transparent)
-                        .clickable { 
-                            if (mode == RoutingMode.DIRECT) {
-                                onShowToast("Direct mode is currently unavailable", true)
-                            } else {
-                                onUpdateMode(mode)
-                            }
-                        }
+                        .clickable { onUpdateMode(mode) }
                         .padding(vertical = (8 * scaleFactor).dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -424,11 +474,8 @@ private fun RuleEditDialog(
     scaleFactor: Float
 ) {
     var rawPattern by remember { mutableStateOf(initialRule?.pattern ?: "") }
-    var selectedMode by remember { 
-        mutableStateOf(
-            if (initialRule?.mode == RoutingMode.DIRECT) RoutingMode.TUNNEL 
-            else initialRule?.mode ?: RoutingMode.TUNNEL
-        ) 
+    var selectedMode by remember {
+        mutableStateOf(initialRule?.mode ?: RoutingMode.TUNNEL)
     }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -522,13 +569,7 @@ private fun RuleEditDialog(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (isSelected) IosActiveBlue else Color.Transparent)
-                                .clickable { 
-                                    if (mode == RoutingMode.DIRECT) {
-                                        onShowToast("Direct mode is currently unavailable", true)
-                                    } else {
-                                        selectedMode = mode
-                                    }
-                                }
+                                .clickable { selectedMode = mode }
                                 .padding(vertical = (10 * scaleFactor).dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -728,7 +769,7 @@ private fun RoutingRulesHelpDialog(
 
                     HelpSection(
                         title = "Routing Modes",
-                        desc = "• Tunnel: Route through Aether (Default).\n• Direct: Currently unavailable.\n• Block: Kill the connection (Ad-blocking).",
+                        desc = "• Tunnel: Route through Aether (Default).\n• Direct: Bypass Aether and use the device network.\n• Block: Kill the connection (Ad-blocking).",
                         icon = Icons.Default.Security,
                         color = Color(0xFF34C759),
                         scaleFactor = scaleFactor
@@ -883,5 +924,97 @@ private fun DeleteConfirmationDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun InternalRulesDialog(
+    onDismiss: () -> Unit,
+    onImport: (String) -> Unit,
+    scaleFactor: Float
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF1C1C1E))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Internal Routing Rules",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = (18 * scaleFactor).sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                InternalRuleButton(
+                    title = "Iran Direct Rules",
+                    desc = "Bypass tunnel for Iranian domains and IP ranges to improve speed and local access.",
+                    onClick = { onImport("iran-direct-domains-ipv4-ipv6.astb") },
+                    scaleFactor = scaleFactor
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                InternalRuleButton(
+                    title = "Adult Content Block",
+                    desc = "Restrict access to adult-oriented domains for a safer browsing experience.",
+                    onClick = { onImport("adult-content-block.astb") },
+                    scaleFactor = scaleFactor
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                InternalRuleButton(
+                    title = "Ads & DNS Block",
+                    desc = "Block common advertisement domains and public DNS trackers for better privacy.",
+                    onClick = { onImport("ads-and-public-dns-block.astb") },
+                    scaleFactor = scaleFactor
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Text("Close", color = IosActiveBlue, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InternalRuleButton(
+    title: String,
+    desc: String,
+    onClick: () -> Unit,
+    scaleFactor: Float
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
+        Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (15 * scaleFactor).sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(desc, color = IosSecondaryLabel, fontSize = (12 * scaleFactor).sp, lineHeight = 16.sp)
     }
 }

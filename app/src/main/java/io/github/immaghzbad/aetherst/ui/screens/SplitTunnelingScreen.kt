@@ -29,7 +29,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -44,7 +43,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.immaghzbad.aetherst.model.AppInfo
-import io.github.immaghzbad.aetherst.model.TunnelEngine
 
 private val IosCardBg = Color(0xFF1C1C1E)
 private val IosSecondaryLabel = Color(0xFF8E8E93)
@@ -55,9 +53,7 @@ fun SplitTunnelingScreen(
     apps: List<AppInfo>,
     excludedPackages: Set<String>,
     blockedPackages: Set<String>,
-    tunnelEngine: TunnelEngine,
     onUpdateMode: (String, Int) -> Unit,
-    onShowToast: (String, Boolean) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     scaleFactor: Float = 1f
 ) {
@@ -210,24 +206,16 @@ fun SplitTunnelingScreen(
         ) {
             items(filteredApps, key = { it.packageName }) { app ->
                 val mode = when {
-                    excludedPackages.contains(app.packageName) -> 0
+                    excludedPackages.contains(app.packageName) -> 1
                     blockedPackages.contains(app.packageName) -> 2
-                    else -> 1
+                    else -> 0
                 }
                 AppLineItem(
                     app = app,
                     mode = mode,
-                    tunnelEngine = tunnelEngine,
-                    onUpdateMode = { index ->
-                        val viewModelMode = when(index) {
-                            0 -> 1
-                            1 -> 0
-                            2 -> 2
-                            else -> 0
-                        }
-                        onUpdateMode(app.packageName, viewModelMode)
+                    onUpdateMode = { modeIndex ->
+                        onUpdateMode(app.packageName, modeIndex)
                     },
-                    onShowToast = onShowToast,
                     scaleFactor = scaleFactor
                 )
             }
@@ -239,9 +227,7 @@ fun SplitTunnelingScreen(
 private fun AppLineItem(
     app: AppInfo,
     mode: Int,
-    tunnelEngine: TunnelEngine,
     onUpdateMode: (Int) -> Unit,
-    onShowToast: (String, Boolean) -> Unit,
     scaleFactor: Float
 ) {
     Column(
@@ -296,9 +282,7 @@ private fun AppLineItem(
 
         ThreeStateSelector(
             currentMode = mode,
-            tunnelEngine = tunnelEngine,
             onModeSelected = onUpdateMode,
-            onShowToast = onShowToast,
             scaleFactor = scaleFactor
         )
     }
@@ -307,9 +291,7 @@ private fun AppLineItem(
 @Composable
 private fun ThreeStateSelector(
     currentMode: Int,
-    tunnelEngine: TunnelEngine,
     onModeSelected: (Int) -> Unit,
-    onShowToast: (String, Boolean) -> Unit,
     scaleFactor: Float
 ) {
     Row(
@@ -320,23 +302,12 @@ private fun ThreeStateSelector(
     ) {
         listOf("Tunnel", "Bypass", "Blocked").forEachIndexed { index, label ->
             val isSelected = currentMode == index
-            val isBlockedOption = index == 2
-            val isBlockedAvailable = tunnelEngine == TunnelEngine.SOCKS_TUN_BRIDGE
-            val enabled = !isBlockedOption || isBlockedAvailable
-
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape((8 * scaleFactor).dp))
                     .background(if (isSelected) IosActiveBlue else Color.Transparent)
-                    .alpha(if (enabled) 1f else 0.4f)
-                    .clickable { 
-                        if (enabled) {
-                            onModeSelected(index)
-                        } else {
-                            onShowToast("Blocked mode requires SocksTunBridge engine.", true)
-                        }
-                    }
+                    .clickable { onModeSelected(index) }
                     .padding(vertical = (8 * scaleFactor).dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -466,7 +437,7 @@ private fun SplitTunnelHelpDialog(
                                 fontSize = (14 * scaleFactor).sp
                             )
                             Text(
-                                "Blocked mode is only available when SocksTunBridge is selected as the tunnel engine.",
+                                "Blocked mode is enforced by the compatible packet engine automatically.",
                                 color = Color.White.copy(alpha = 0.6f),
                                 fontSize = (12 * scaleFactor).sp,
                                 lineHeight = (17 * scaleFactor).sp
@@ -498,7 +469,7 @@ private fun SplitTunnelHelpDialog(
                                 fontSize = (14 * scaleFactor).sp
                             )
                             Text(
-                                "The 'Blocked' feature requires Android 10 (API 29) or higher to identify app connections accurately. On older versions, this specific mode is automatically disabled to maintain system stability.",
+                                "Android 10 and newer use the platform connection-owner API. Android 8 and 9 use the compatibility resolver.",
                                 color = Color.White.copy(alpha = 0.6f),
                                 fontSize = (12 * scaleFactor).sp,
                                 lineHeight = (17 * scaleFactor).sp

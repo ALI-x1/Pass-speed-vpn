@@ -225,7 +225,7 @@ fun SettingsScreen(
             }
 
 
-            if (searchQuery.isEmpty() || "Engine Transport Protocol Bypass Obfuscation Speed Strategy Network Stack Split Tunneling Domain Routing VPN Tunnel Mode SOCKS5 HTTP Host Port MTU Keepalive Peer".contains(searchQuery, ignoreCase = true)) {
+            if (searchQuery.isEmpty() || "Engine Transport Protocol Bypass Obfuscation Speed Strategy Network Stack Whole Device Split Tunneling Domain Routing VPN Tunnel Mode SOCKS5 HTTP Host Port MTU Keepalive Peer".contains(searchQuery, ignoreCase = true)) {
                 item {
                     IosSectionHeader(title = "CONNECTION & ROUTING", scaleFactor = scaleFactor)
                     IosGroupCard {
@@ -382,11 +382,22 @@ fun SettingsScreen(
                             )
                             if (config.connectionMode == ConnectionMode.TUNNEL) {
                                 HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosSwitchRow(
+                                    icon = Icons.Default.AllInclusive,
+                                    iconBg = Color(0xFF007AFF),
+                                    title = "Tunnel Whole Device",
+                                    subtitle = "Route all application traffic through VPN",
+                                    checked = config.tunnelAllApps,
+                                    onCheckedChange = { onUpdateConfig(config.copy(tunnelAllApps = it)) },
+                                    testTag = "switch_tunnel_all",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                                 IosPickerRow(
                                     icon = Icons.Default.Tune,
                                     iconBg = Color(0xFF5856D6),
-                                    title = "App Split Tunneling",
-                                    value = "${config.excludedPackages.size + config.blockedPackages.size} Apps",
+                                    title = "Split Tunneling",
+                                    value = if (config.tunnelAllApps) "All Apps Tunneled" else "${config.excludedPackages.size + config.blockedPackages.size} Apps",
                                     options = emptyList(),
                                     onOptionSelected = { },
                                     scaleFactor = scaleFactor,
