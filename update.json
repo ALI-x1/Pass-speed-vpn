@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "version_code": 1,
   "is_beta": false,
-  "changelog": "• Added Quick Settings Tile support\n• Added Kill Switch (Standard/Strict)\n• IPv6 Leak Protection\n• Smart Reconnect logic\n• Real MTU Auto-Optimization\n• Full Config Backup/Restore (.astf)\n• App blocking in Split Tunneling\n• Advanced Domain & IP Routing\n• Overhauled Settings UI with Search\n• Refined Nav Bar\n• Upgraded Aether Core to v1.5.0\n• Fixed disconnections on Android 8\n• Optimized TCP/DNS stability\n• Fixed app counting",
-  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.2.0"
+  "changelog": "• New Brand Identity: Updated app icon and visual branding.\n• Added VPN Hotspot Sharing: Share your secure connection with other devices via LAN IP.\n• Professional Crash Reporter: Built-in diagnostic tool to capture and share technical logs.\n• Advanced UI Animations: Redesigned Toast notifications.\n• Local HTTP Proxy Support: Built-in proxy server for seamless relay to SOCKS5 core.\n• Android 8 Stability Fix: Resolved critical VPN service crashes on older Android versions.\n• Optimized Split Tunneling: New 'Include Mode' (Default Bypass) for better control.\n• Improved Traffic Monitoring: Real-time precision and flickering fixes.\n• Enhanced Protocol Stability: Isolated settings storage for each protocol.\n• Unified Edge-to-Edge UI: Consistent headers and professional layout across all screens.",
+  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.3.0"
 }
