@@ -15,6 +15,9 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-Proprietary-orange?style=for-the-badge" alt="License">
   </a>
+  <a href="https://github.com/immaghzbad/AetherST/stargazers">
+    <img src="https://img.shields.io/github/stars/immaghzbad/AetherST?style=for-the-badge&color=FFD700" alt="Stars">
+  </a>
   <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform">
 </p>
 
@@ -27,7 +30,7 @@
 ## ✨ Features
 
 - 🛡️ **Stealth Connectivity:** Specifically optimized to bypass protocol fingerprinting and DPI.
-- 🚀 **Advanced Transports:** Comprehensive support for **MASQUE**, **WireGuard**, and **Gool (WG-in-WG)**.
+- 🚀 **Advanced Transports:** Comprehensive support for **MASQUE**, **WireGuard**, **Gool (WG-in-WG)**, and **Cloudflare Zero Trust**.
 - 📡 **Intelligent Scanning:** Real-time gateway discovery with data-plane validation before connection.
 - ⚡ **Native Performance:** Powered by a C-based native packet engine (HEV) for high throughput and low latency.
 - 📱 **Modern UI:** Clean, iOS-inspired dashboard built with **Jetpack Compose** for a premium user experience.
@@ -45,6 +48,9 @@ A modern, high-performance VPN protocol that uses state-of-the-art cryptography.
 
 ### 🌀 Gool (Warp-in-Warp / WG-in-WG)
 A specialized nested WireGuard configuration (Nested WireGuard). By wrapping one WireGuard tunnel inside another, it provides an additional layer of encryption and obfuscation, effectively bypassing many restrictive firewalls and improving stability.
+
+### ☁️ Cloudflare Zero Trust (Teams)
+Enterprise-grade security for individuals and organizations. It allows you to route your traffic through Cloudflare's global network using Gateway filtering and Service Tokens, ensuring zero-trust access control and protection against malware and phishing.
 
 ---
 
@@ -67,6 +73,12 @@ The native bridge between Android's VpnService and Aether:
 - Mature user-space TCP/IP stack.
 - Zero-copy packet processing.
 - Efficient UDP over SOCKS5 translation.
+
+### SocksTunBridge
+A high-performance Kotlin/Java based tunnel engine:
+- Direct SOCKS5 to TUN translation.
+- Per-packet sniffing for intelligent routing.
+- Lightweight alternative for devices with restricted native library support.
 
 ## 🚀 Getting Started
 
