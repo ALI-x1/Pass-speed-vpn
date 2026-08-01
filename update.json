@@ -1,7 +1,7 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "version_code": 1,
   "is_beta": false,
-  "changelog": "• New Brand Identity: Updated app icon and visual branding.\n• Added VPN Hotspot Sharing: Share your secure connection with other devices via LAN IP.\n• Professional Crash Reporter: Built-in diagnostic tool to capture and share technical logs.\n• Advanced UI Animations: Redesigned Toast notifications.\n• Local HTTP Proxy Support: Built-in proxy server for seamless relay to SOCKS5 core.\n• Android 8 Stability Fix: Resolved critical VPN service crashes on older Android versions.\n• Optimized Split Tunneling: New 'Include Mode' (Default Bypass) for better control.\n• Improved Traffic Monitoring: Real-time precision and flickering fixes.\n• Enhanced Protocol Stability: Isolated settings storage for each protocol.\n• Unified Edge-to-Edge UI: Consistent headers and professional layout across all screens.",
-  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.3.0"
+  "changelog": "• Added 'Tunnel Whole Device' switch in Settings for easier global control.\n• Enhanced service lifecycle to fix UI sync and notification issues on Android 8 & 16.\n• Optimized internal state management for faster and more reliable connections.\n• Improved routing and IP handling.\n• Added multiple routing databases for enhanced traffic management.\n• Various improvements to the SocksTunBridge engine.",
+  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.4.0"
 }
