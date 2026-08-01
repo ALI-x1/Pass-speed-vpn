@@ -140,10 +140,10 @@ class LocalSocksProxyServer(
                 return
             }
 
-            if (false) {
+            if (decision.mode == RoutingMode.DIRECT) {
                 try {
                     val directSocket = Socket()
-                    vpnService.protect(directSocket)
+                    runCatching { vpnService.protect(directSocket) }
                     directSocket.tcpNoDelay = true
                     directSocket.connect(InetSocketAddress(finalTargetIp ?: finalTargetDomain, port), 5000)
                     
@@ -172,7 +172,7 @@ class LocalSocksProxyServer(
             }
 
             targetSocket = Socket()
-            vpnService.protect(targetSocket)
+            runCatching { vpnService.protect(targetSocket) }
             targetSocket.tcpNoDelay = true
             targetSocket.connect(InetSocketAddress(targetHost, targetPort), 5000)
 

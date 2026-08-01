@@ -6,6 +6,7 @@ import android.net.TrafficStats
 import android.os.Process
 import io.github.immaghzbad.aetherst.data.AetherConfigRepository
 import io.github.immaghzbad.aetherst.data.LogRepository
+import io.github.immaghzbad.aetherst.model.AetherScanMode
 import io.github.immaghzbad.aetherst.model.ConnectionStatus
 import io.github.immaghzbad.aetherst.model.SessionTraffic
 import kotlinx.coroutines.*
@@ -57,6 +58,10 @@ class ConnectionController private constructor(context: Context) {
                 INSTANCE ?: ConnectionController(context.applicationContext).also { INSTANCE = it }
             }
         }
+
+        fun updateStatus(status: ConnectionStatus) {
+            _status.value = status
+        }
     }
 
     init {
@@ -73,7 +78,7 @@ class ConnectionController private constructor(context: Context) {
     }
 
     suspend fun start() = mutex.withLock {
-        if (_status.value != ConnectionStatus.STOPPED && _status.value != ConnectionStatus.ERROR) {
+        if (_status.value == ConnectionStatus.RUNNING || _status.value == ConnectionStatus.VALIDATING) {
             return@withLock
         }
 
@@ -97,14 +102,29 @@ class ConnectionController private constructor(context: Context) {
                 loginCodeChannel.receive()
             })
 
-            val coreReady = withTimeoutOrNull(30.seconds) {
-                runner.connectionStatus.first { it == ConnectionStatus.RUNNING }
-                true
-            } == true
+            val proxyPort = config.socksPort.toIntOrNull() ?: 1819
+            val startupTimeoutSeconds = when (config.scanMode) {
+                AetherScanMode.TURBO -> 90L
+                AetherScanMode.BALANCED -> 120L
+                AetherScanMode.THOROUGH -> 180L
+                AetherScanMode.STEALTH -> 240L
+                AetherScanMode.IRONCLAD -> 240L
+            } + config.validateSecs.coerceAtLeast(0)
 
-            if (!coreReady) throw IllegalStateException("Core startup timed out")
+            val ready = withTimeoutOrNull(startupTimeoutSeconds.seconds) {
+                while (currentCoroutineContext().isActive) {
+                    if (runner.connectionStatus.value == ConnectionStatus.RUNNING) return@withTimeoutOrNull true
+                    if (isPortListening("127.0.0.1", proxyPort)) return@withTimeoutOrNull true
+                    delay(250.milliseconds)
+                }
+                false
+            } ?: false
 
-            if (!verifyPortListening(config.socksHost, config.socksPort.toIntOrNull() ?: 1819)) {
+            if (!ready) {
+                throw IllegalStateException("Core startup timed out after ${startupTimeoutSeconds}s")
+            }
+
+            if (!verifyPortListening("127.0.0.1", proxyPort)) {
                 throw IllegalStateException("Proxy port is not listening")
             }
 
@@ -129,7 +149,7 @@ class ConnectionController private constructor(context: Context) {
     }
 
     suspend fun stop() = mutex.withLock {
-        if (_status.value == ConnectionStatus.STOPPED || _status.value == ConnectionStatus.STOPPING) {
+        if (_status.value == ConnectionStatus.STOPPED) {
             return@withLock
         }
 
@@ -187,18 +207,21 @@ class ConnectionController private constructor(context: Context) {
         }
     }
 
+    private suspend fun isPortListening(host: String, port: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(host, port), 300)
+                    true
+                }
+            }.getOrDefault(false)
+        }
+    }
+
     private suspend fun verifyPortListening(host: String, port: Int): Boolean {
         val deadline = System.currentTimeMillis() + 5000
         while (System.currentTimeMillis() < deadline) {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    Socket().use { socket ->
-                        socket.connect(InetSocketAddress(host, port), 500)
-                        true
-                    }
-                }.getOrDefault(false)
-            }
-            if (result) return true
+            if (isPortListening(host, port)) return true
             delay(200.milliseconds)
         }
         return false

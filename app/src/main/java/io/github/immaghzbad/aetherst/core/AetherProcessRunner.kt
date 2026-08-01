@@ -254,8 +254,11 @@ class AetherProcessRunner(private val context: Context) {
                             LogRepository.d("Sent input to binary")
                         }
                     }
-                } catch (e: Exception) {
-                    LogRepository.w("Process input pipe closed: ${e.localizedMessage}")
+                } catch (_: CancellationException) {
+                } catch (exception: Exception) {
+                    if (currentCoroutineContext().isActive && currentAttemptId.get() == attemptId) {
+                        LogRepository.w("Process input pipe closed: ${exception.localizedMessage}")
+                    }
                 }
             }
 
@@ -297,9 +300,12 @@ class AetherProcessRunner(private val context: Context) {
     private fun parseOutputLine(line: String, attemptId: Long, protocol: AetherProtocol, onCodeRequired: () -> Unit) {
         if (currentAttemptId.get() != attemptId) return
 
-        LogRepository.i(line, "AetherCore")
-
         val lower = line.lowercase()
+        when {
+            lower.contains(" error ") || lower.contains("[error]") -> LogRepository.e(line, "AetherCore")
+            lower.contains(" warn ") || lower.contains("[warn]") -> LogRepository.w(line, "AetherCore")
+            else -> LogRepository.i(line, "AetherCore")
+        }
 
         if (lower.contains("enter code:") || lower.contains("login code required")) {
             onCodeRequired()
@@ -323,11 +329,22 @@ class AetherProcessRunner(private val context: Context) {
             }
             lower.contains("validating") -> updateState(ConnectionStatus.VALIDATING, attemptId)
 
-            protocol == AetherProtocol.MASQUE && lower.contains("tunnel validated (end-to-end data confirmed)") -> {
+            protocol == AetherProtocol.MASQUE && (
+                lower.contains("tunnel validated") ||
+                lower.contains("data-plane verification passed") ||
+                lower.contains("data plane verification passed") ||
+                lower.contains("connect-ip status: 200") ||
+                lower.contains("connect-ip established") ||
+                (lower.contains("socks") && lower.contains("listening"))
+            ) -> {
                 updateState(ConnectionStatus.RUNNING, attemptId)
             }
 
-            protocol == AetherProtocol.WG && lower.contains("wireguard tunnel validated") -> {
+            protocol == AetherProtocol.WG && (
+                lower.contains("wireguard tunnel validated") ||
+                lower.contains("wireguard handshake complete") ||
+                (lower.contains("socks") && lower.contains("listening"))
+            ) -> {
                 updateState(ConnectionStatus.RUNNING, attemptId)
             }
 
