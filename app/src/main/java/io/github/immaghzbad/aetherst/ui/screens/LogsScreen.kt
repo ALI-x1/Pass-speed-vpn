@@ -1,6 +1,5 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -114,13 +114,13 @@ fun LogsScreen(
                 .fillMaxSize()
                 .padding(
                     start = horizontalPadding,
-                    top = 10.dp,
+                    top = 0.dp,
                     end = horizontalPadding,
                     bottom = bottomContentPadding + 10.dp
                 )
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {

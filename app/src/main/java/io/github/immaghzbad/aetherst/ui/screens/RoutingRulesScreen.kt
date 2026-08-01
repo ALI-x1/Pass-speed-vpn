@@ -174,7 +174,6 @@ fun RoutingRulesScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .statusBarsPadding()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -183,20 +182,22 @@ fun RoutingRulesScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
+                .statusBarsPadding()
+                .padding(start = (8 * scaleFactor).dp, end = (12 * scaleFactor).dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size((40 * scaleFactor).dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White, modifier = Modifier.size((24 * scaleFactor).dp))
             }
-            Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
+            Spacer(modifier = Modifier.width((4 * scaleFactor).dp))
             Text(
                 text = "Routing Rules",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 modifier = Modifier.weight(1f),
-                fontSize = (20 * scaleFactor).sp
+                fontSize = (26 * scaleFactor).sp,
+                lineHeight = (30 * scaleFactor).sp
             )
             IconButton(onClick = { showAddDialog = true }, modifier = Modifier.size((40 * scaleFactor).dp)) {
                 Icon(Icons.Default.Add, null, tint = IosActiveBlue, modifier = Modifier.size((28 * scaleFactor).dp))

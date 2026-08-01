@@ -109,7 +109,6 @@ fun SplitTunnelingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .statusBarsPadding()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -118,20 +117,22 @@ fun SplitTunnelingScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
+                .statusBarsPadding()
+                .padding(start = (8 * scaleFactor).dp, end = (16 * scaleFactor).dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size((40 * scaleFactor).dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White, modifier = Modifier.size((24 * scaleFactor).dp))
             }
-            Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
+            Spacer(modifier = Modifier.width((4 * scaleFactor).dp))
             Text(
                 text = "Split Tunneling",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 modifier = Modifier.weight(1f),
-                fontSize = (22 * scaleFactor).sp
+                fontSize = (26 * scaleFactor).sp,
+                lineHeight = (30 * scaleFactor).sp
             )
             IconButton(onClick = { showHelpDialog = true }, modifier = Modifier.size((40 * scaleFactor).dp)) {
                 Icon(Icons.Default.Info, null, tint = IosActiveBlue, modifier = Modifier.size((24 * scaleFactor).dp))
@@ -209,15 +210,23 @@ fun SplitTunnelingScreen(
         ) {
             items(filteredApps, key = { it.packageName }) { app ->
                 val mode = when {
-                    excludedPackages.contains(app.packageName) -> 1
+                    excludedPackages.contains(app.packageName) -> 0
                     blockedPackages.contains(app.packageName) -> 2
-                    else -> 0
+                    else -> 1
                 }
                 AppLineItem(
                     app = app,
                     mode = mode,
                     tunnelEngine = tunnelEngine,
-                    onUpdateMode = { onUpdateMode(app.packageName, it) },
+                    onUpdateMode = { index ->
+                        val viewModelMode = when(index) {
+                            0 -> 1
+                            1 -> 0
+                            2 -> 2
+                            else -> 0
+                        }
+                        onUpdateMode(app.packageName, viewModelMode)
+                    },
                     onShowToast = onShowToast,
                     scaleFactor = scaleFactor
                 )
@@ -412,14 +421,14 @@ private fun SplitTunnelHelpDialog(
                     Column(verticalArrangement = Arrangement.spacedBy((18 * scaleFactor).dp)) {
                         HelpItem(
                             title = "Tunnel",
-                            desc = "Full protection. All traffic is encrypted and routed through the Aether secure tunnel.",
+                            desc = "Full protection. All traffic for this app is encrypted and routed through the Aether secure tunnel.",
                             icon = Icons.Default.Security,
                             color = IosActiveBlue,
                             scaleFactor = scaleFactor
                         )
                         HelpItem(
                             title = "Bypass",
-                            desc = "Direct access. Uses your local network for maximum speed and compatibility with local apps.",
+                            desc = "Direct access (Default). Uses your local network for maximum speed and compatibility with local apps.",
                             icon = Icons.Default.Public,
                             color = Color(0xFF34C759),
                             scaleFactor = scaleFactor

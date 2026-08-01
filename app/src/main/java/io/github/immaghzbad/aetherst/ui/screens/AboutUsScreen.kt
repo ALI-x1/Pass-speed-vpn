@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,19 +56,37 @@ fun AboutUsScreen(
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         val screenWidth = this.maxWidth
         val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
-        val horizontalPadding = if (screenWidth < 360.dp) 12.dp else 16.dp
+        val horizontalPadding = 16.dp
 
         val uriHandler = LocalUriHandler.current
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = horizontalPadding,
-                top = 20.dp,
+                top = 0.dp,
                 end = horizontalPadding,
                 bottom = bottomContentPadding + 24.dp
             ),
             verticalArrangement = Arrangement.spacedBy((16 * scaleFactor).dp)
         ) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 12.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "About AetherST",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = (26 * scaleFactor).sp,
+                        lineHeight = (30 * scaleFactor).sp
+                    )
+                }
+            }
             item { AboutHero(scaleFactor = scaleFactor) }
             item {
                 AboutInfoCard(
@@ -273,7 +292,7 @@ private fun AboutHero(scaleFactor: Float = 1f) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy((8 * scaleFactor).dp)
                     ) {
-                        VersionText(label = "App", value = "1.2.0", color = IosActiveBlue, scaleFactor = scaleFactor)
+                        VersionText(label = "App", value = "1.3.0", color = IosActiveBlue, scaleFactor = scaleFactor)
                         Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = (12 * scaleFactor).sp)
                         VersionText(label = "Aether", value = "1.5.0", color = IosActiveGreen, scaleFactor = scaleFactor)
                         Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = (12 * scaleFactor).sp)

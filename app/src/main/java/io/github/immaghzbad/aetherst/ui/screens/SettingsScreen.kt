@@ -29,8 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.github.immaghzbad.aetherst.core.NetworkUtils
 import io.github.immaghzbad.aetherst.model.*
 
 private val IosCardBackground = Color(0xFF1C1C1E)
@@ -90,12 +93,12 @@ fun SettingsScreen(
     ) {
         val screenWidth = this.maxWidth
         val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
-        val horizontalPadding = if (screenWidth < 360.dp) 10.dp else 16.dp
+        val horizontalPadding = 16.dp
         val lazyListState = rememberLazyListState()
 
         LaunchedEffect(scrollToSection) {
             if (scrollToSection) {
-                lazyListState.animateScrollToItem(2)
+                lazyListState.animateScrollToItem(4)
                 onSectionScrolled()
             }
         }
@@ -105,26 +108,28 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = horizontalPadding,
-                top = 12.dp,
+                top = 0.dp,
                 end = horizontalPadding,
                 bottom = bottomContentPadding + 12.dp
             ),
             verticalArrangement = Arrangement.spacedBy((18 * scaleFactor).dp)
         ) {
             item {
-                Column {
+                Column(modifier = Modifier.statusBarsPadding().padding(top = 12.dp)) {
                     Text(
                         text = "AetherST Settings",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
-                        fontSize = (26 * scaleFactor).sp
+                        fontSize = (26 * scaleFactor).sp,
+                        lineHeight = (30 * scaleFactor).sp
                     )
                     Text(
                         text = "Configure engine protocols, obfuscation & transport parameters",
                         style = MaterialTheme.typography.bodySmall,
                         color = IosSecondaryLabel,
-                        fontSize = (11 * scaleFactor).sp
+                        fontSize = (12 * scaleFactor).sp,
+                        lineHeight = (16 * scaleFactor).sp
                     )
                 }
             }
@@ -219,218 +224,35 @@ fun SettingsScreen(
                 }
             }
 
-            if ((config.protocol == AetherProtocol.ZERO_TRUST) && (searchQuery.isEmpty() || "Cloudflare Zero Trust Team Access Gateway ID Secret Token".contains(searchQuery, ignoreCase = true))) {
-                item {
-                    Column {
-                        IosSectionHeader(title = "CLOUDFLARE ZERO TRUST", scaleFactor = scaleFactor)
-                        IosGroupCard {
-                            Column {
-                                IosInputFieldRow(
-                                    icon = Icons.Default.Business,
-                                    iconBg = Color(0xFF5856D6),
-                                    label = "Organization Team Name",
-                                    value = config.teamName,
-                                    onValueChange = { onUpdateConfig(config.copy(teamName = it)) },
-                                    placeholder = "e.g. my-org",
-                                    testTag = "zt_team_input",
-                                    scaleFactor = scaleFactor
-                                )
-                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                                IosInputFieldRow(
-                                    icon = Icons.Default.Language,
-                                    iconBg = Color(0xFF007AFF),
-                                    label = "Cloudflare Access Email",
-                                    value = config.accessEmail,
-                                    onValueChange = { onUpdateConfig(config.copy(accessEmail = it)) },
-                                    placeholder = "user@example.com",
-                                    testTag = "zt_email_input",
-                                    scaleFactor = scaleFactor
-                                )
-                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                                IosSwitchRow(
-                                    icon = Icons.Default.Shield,
-                                    iconBg = Color(0xFF34C759),
-                                    title = "Gateway Filtering Proxy",
-                                    subtitle = "Route via org Gateway for filtering & logs",
-                                    checked = config.useGateway,
-                                    onCheckedChange = { onUpdateConfig(config.copy(useGateway = it)) },
-                                    testTag = "switch_zt_gateway",
-                                    scaleFactor = scaleFactor
-                                )
-                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { showAdvancedZeroTrust = !showAdvancedZeroTrust }
-                                        .padding(horizontal = (16 * scaleFactor).dp, vertical = (14 * scaleFactor).dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IosIconBadge(icon = Icons.Default.Lock, backgroundColor = Color(0xFF8E8E93), scaleFactor = scaleFactor)
-                                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
-                                        Text(
-                                            text = "Advanced Authentication",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.White,
-                                            fontSize = (15 * scaleFactor).sp
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = if (showAdvancedZeroTrust) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = null,
-                                        tint = IosSecondaryLabel,
-                                        modifier = Modifier.size((18 * scaleFactor).dp)
-                                    )
-                                }
 
-                                AnimatedVisibility(
-                                    visible = showAdvancedZeroTrust,
-                                    enter = fadeIn() + expandVertically(),
-                                    exit = fadeOut() + shrinkVertically()
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(IosGroupBackground.copy(alpha = 0.4f))
-                                            .padding((14 * scaleFactor).dp),
-                                        verticalArrangement = Arrangement.spacedBy((12 * scaleFactor).dp)
-                                    ) {
-                                        IosInputField(
-                                            label = "Access Client ID",
-                                            value = config.accessId,
-                                            onValueChange = { onUpdateConfig(config.copy(accessId = it)) },
-                                            placeholder = "Required for Service Tokens",
-                                            testTag = "zt_access_id",
-                                            scaleFactor = scaleFactor
-                                        )
-                                        IosInputField(
-                                            label = "Access Client Secret",
-                                            value = config.accessSecret,
-                                            onValueChange = { onUpdateConfig(config.copy(accessSecret = it)) },
-                                            placeholder = "Required for Service Tokens",
-                                            testTag = "zt_access_secret",
-                                            scaleFactor = scaleFactor
-                                        )
-                                        IosInputField(
-                                            label = "Manual JWT Access Token",
-                                            value = config.accessToken,
-                                            onValueChange = { onUpdateConfig(config.copy(accessToken = it)) },
-                                            placeholder = "Optional overrides auth",
-                                            testTag = "zt_access_token",
-                                            scaleFactor = scaleFactor
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (searchQuery.isEmpty() || "Advanced Security Kill Switch IPv6 Leak Protection Smart Reconnect".contains(searchQuery, ignoreCase = true)) {
-                item {
-                    IosSectionHeader(title = "ADVANCED SECURITY & AUTO-RECOVERY", scaleFactor = scaleFactor)
-                    IosGroupCard {
-                        Column {
-                            IosSwitchRow(
-                                icon = Icons.Default.VpnLock,
-                                iconBg = Color(0xFF5856D6),
-                                title = "Strict Kill Switch",
-                                subtitle = "Prevent any leak even during manual stop",
-                                checked = config.strictKillSwitch,
-                                onCheckedChange = { onUpdateConfig(config.copy(strictKillSwitch = it)) },
-                                testTag = "switch_strict_kill_switch",
-                                scaleFactor = scaleFactor
-                            )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosSwitchRow(
-                                icon = Icons.Default.Lock,
-                                iconBg = Color(0xFFFF3B30),
-                                title = "Kill Switch",
-                                subtitle = "Block traffic when VPN is disconnected",
-                                checked = config.killSwitch,
-                                onCheckedChange = { onUpdateConfig(config.copy(killSwitch = it)) },
-                                testTag = "switch_kill_switch",
-                                scaleFactor = scaleFactor
-                            )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosSwitchRow(
-                                icon = Icons.Default.Security,
-                                iconBg = Color(0xFF5856D6),
-                                title = "IPv6 Leak Protection",
-                                subtitle = "Force all IPv6 traffic through tunnel",
-                                checked = config.ipv6Leak,
-                                onCheckedChange = { onUpdateConfig(config.copy(ipv6Leak = it)) },
-                                testTag = "switch_ipv6_leak",
-                                scaleFactor = scaleFactor
-                            )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosSwitchRow(
-                                icon = Icons.Default.Restore,
-                                iconBg = Color(0xFF34C759),
-                                title = "Smart Reconnect",
-                                subtitle = "Attempt auto-recovery on network failure",
-                                checked = config.smartReconnect,
-                                onCheckedChange = { onUpdateConfig(config.copy(smartReconnect = it)) },
-                                testTag = "switch_smart_reconnect",
-                                scaleFactor = scaleFactor
-                            )
-                            if (config.smartReconnect) {
-                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                                        IosIconBadge(icon = Icons.Default.Repeat, backgroundColor = Color(0xFF8E8E93), scaleFactor = scaleFactor)
-                                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
-                                        IosInputField(
-                                            label = "Max Retries",
-                                            value = config.reconnectRetryLimit.toString(),
-                                            onValueChange = { onUpdateConfig(config.copy(reconnectRetryLimit = it.toIntOrNull() ?: 10)) },
-                                            placeholder = "10",
-                                            keyboardType = KeyboardType.Number,
-                                            testTag = "reconnect_limit_input",
-                                            scaleFactor = scaleFactor
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
-                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                                        IosInputField(
-                                            label = "Delay (Secs)",
-                                            value = config.reconnectSecs.toString(),
-                                            onValueChange = { onUpdateConfig(config.copy(reconnectSecs = it.toIntOrNull() ?: 2)) },
-                                            placeholder = "2",
-                                            keyboardType = KeyboardType.Number,
-                                            testTag = "reconnect_secs_input",
-                                            scaleFactor = scaleFactor
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (searchQuery.isEmpty() || "Engine Transport Protocol Bypass Obfuscation Speed Strategy Network Stack Split Tunneling Domain Routing VPN Tunnel Mode SOCKS5 Host Port MTU Keepalive Peer".contains(searchQuery, ignoreCase = true)) {
+            if (searchQuery.isEmpty() || "Engine Transport Protocol Bypass Obfuscation Speed Strategy Network Stack Split Tunneling Domain Routing VPN Tunnel Mode SOCKS5 HTTP Host Port MTU Keepalive Peer".contains(searchQuery, ignoreCase = true)) {
                 item {
                     IosSectionHeader(title = "CONNECTION & ROUTING", scaleFactor = scaleFactor)
                     IosGroupCard {
                         Column {
                             IosPickerRow(
                                 icon = Icons.Default.VpnLock,
-                                iconBg = Color(0xFF5856D6),
-                                title = "Tunnel Engine",
-                                value = config.tunnelEngine.displayName,
-                                options = TunnelEngine.entries.map { it.displayName },
-                                onOptionSelected = { index -> onUpdateTunnelEngine(TunnelEngine.entries[index]) },
+                                iconBg = Color(0xFF34C759),
+                                title = "Connection Mode",
+                                value = if (config.connectionMode == ConnectionMode.TUNNEL) "Tunnel" else "Proxy Only",
+                                options = listOf("Tunnel", "Proxy Only"),
+                                onOptionSelected = { index -> 
+                                    onUpdateConfig(config.copy(connectionMode = if (index == 0) ConnectionMode.TUNNEL else ConnectionMode.PROXY_ONLY))
+                                },
                                 scaleFactor = scaleFactor
                             )
+                            if (config.connectionMode == ConnectionMode.TUNNEL) {
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosPickerRow(
+                                    icon = Icons.Default.VpnLock,
+                                    iconBg = Color(0xFF5856D6),
+                                    title = "Tunnel Engine",
+                                    value = config.tunnelEngine.displayName,
+                                    options = TunnelEngine.entries.map { it.displayName },
+                                    onOptionSelected = { index -> onUpdateTunnelEngine(TunnelEngine.entries[index]) },
+                                    scaleFactor = scaleFactor
+                                )
+                            }
                             HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                             IosPickerRow(
                                 icon = Icons.Default.VpnLock,
@@ -558,39 +380,122 @@ fun SettingsScreen(
                                 onOptionSelected = { index -> onUpdateConfig(config.copy(ipMode = AetherIpMode.entries[index])) },
                                 scaleFactor = scaleFactor
                             )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosPickerRow(
-                                icon = Icons.Default.Tune,
-                                iconBg = Color(0xFF5856D6),
-                                title = "App Split Tunneling",
-                                value = "${config.excludedPackages.size + config.blockedPackages.size} Apps",
-                                options = emptyList(),
-                                onOptionSelected = { },
-                                scaleFactor = scaleFactor,
-                                onClickOverride = onOpenSplitTunneling
-                            )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosPickerRow(
-                                icon = Icons.AutoMirrored.Filled.AltRoute,
-                                iconBg = Color(0xFF007AFF),
-                                title = "Domain & IP Routing",
-                                value = "${config.routingRules.size} Rules",
-                                options = emptyList(),
-                                onOptionSelected = { },
-                                scaleFactor = scaleFactor,
-                                onClickOverride = onOpenRoutingRules
-                            )
+                            if (config.connectionMode == ConnectionMode.TUNNEL) {
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosPickerRow(
+                                    icon = Icons.Default.Tune,
+                                    iconBg = Color(0xFF5856D6),
+                                    title = "App Split Tunneling",
+                                    value = "${config.excludedPackages.size + config.blockedPackages.size} Apps",
+                                    options = emptyList(),
+                                    onOptionSelected = { },
+                                    scaleFactor = scaleFactor,
+                                    onClickOverride = onOpenSplitTunneling
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosPickerRow(
+                                    icon = Icons.AutoMirrored.Filled.AltRoute,
+                                    iconBg = Color(0xFF007AFF),
+                                    title = "Domain & IP Routing",
+                                    value = "${config.routingRules.size} Rules",
+                                    options = emptyList(),
+                                    onOptionSelected = { },
+                                    scaleFactor = scaleFactor,
+                                    onClickOverride = onOpenRoutingRules
+                                )
+                            }
                             HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                             IosSwitchRow(
-                                icon = Icons.Default.VpnLock,
-                                iconBg = Color(0xFF34C759),
-                                title = "Full VPN Tunnel",
-                                subtitle = "Enables global device-wide protection",
-                                checked = !config.proxyOnly,
-                                onCheckedChange = { onUpdateConfig(config.copy(proxyOnly = !it)) },
-                                testTag = "switch_proxy_only",
+                                icon = Icons.Default.Share,
+                                iconBg = Color(0xFFAF52DE),
+                                title = "Share via Hotspot",
+                                subtitle = "Allow other devices to connect to proxy",
+                                checked = config.shareHotspot,
+                                onCheckedChange = { onUpdateConfig(config.copy(shareHotspot = it)) },
+                                testTag = "switch_share_hotspot",
                                 scaleFactor = scaleFactor
                             )
+                            if (config.shareHotspot) {
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(IosGroupBackground.copy(alpha = 0.4f))
+                                        .padding((14 * scaleFactor).dp)
+                                ) {
+                                    var localIp by remember { mutableStateOf<String?>(null) }
+                                    val clipboardManager = LocalClipboardManager.current
+                                    
+                                    LaunchedEffect(Unit) {
+                                        localIp = NetworkUtils.getLocalIpAddress()
+                                    }
+                                    
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Info,
+                                                contentDescription = null,
+                                                tint = if (localIp != null) IosActiveBlue else Color(0xFFFF3B30),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (localIp != null) "LAN IP: $localIp" else "Hotspot is off",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = (13 * scaleFactor).sp
+                                            )
+                                        }
+                                        
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = {
+                                                    val newIp = NetworkUtils.getLocalIpAddress()
+                                                    localIp = newIp
+                                                    if (newIp != null) {
+                                                        onShowToast("Hotspot IP detected!", false)
+                                                    } else {
+                                                        onShowToast("Hotspot is off. Please enable it and test again.", true)
+                                                    }
+                                                },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(Icons.Default.Refresh, null, tint = IosActiveBlue, modifier = Modifier.size(18.dp))
+                                            }
+                                            
+                                            if (localIp != null) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                IconButton(
+                                                    onClick = {
+                                                        clipboardManager.setText(AnnotatedString(localIp!!))
+                                                        onShowToast("IP address copied!", false)
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.ContentCopy, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = if (localIp != null) 
+                                            "Devices on your Hotspot can use this IP with the ports below."
+                                            else "Please enable your Hotspot and tap the refresh button.",
+                                        color = IosSecondaryLabel,
+                                        fontSize = (11 * scaleFactor).sp,
+                                        lineHeight = 16.sp
+                                    )
+                                }
+                            }
                             HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                             Row(
                                 modifier = Modifier
@@ -611,13 +516,24 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width((10 * scaleFactor).dp))
                                 IosInputField(
-                                    label = "Port",
+                                    label = "SOCKS Port",
                                     value = config.socksPort,
                                     onValueChange = { onUpdateConfig(config.copy(socksPort = it)) },
-                                    modifier = Modifier.width((80 * scaleFactor).dp),
+                                    modifier = Modifier.width((75 * scaleFactor).dp),
                                     placeholder = "1819",
                                     keyboardType = KeyboardType.Number,
                                     testTag = "socks_port_input",
+                                    scaleFactor = scaleFactor
+                                )
+                                Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
+                                IosInputField(
+                                    label = "HTTP Port",
+                                    value = config.httpPort,
+                                    onValueChange = { onUpdateConfig(config.copy(httpPort = it)) },
+                                    modifier = Modifier.width((75 * scaleFactor).dp),
+                                    placeholder = "1820",
+                                    keyboardType = KeyboardType.Number,
+                                    testTag = "http_port_input",
                                     scaleFactor = scaleFactor
                                 )
                             }
@@ -714,35 +630,37 @@ fun SettingsScreen(
                                 testTag = "tls_groups_input",
                                 scaleFactor = scaleFactor
                             )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IosIconBadge(icon = Icons.Default.Dns, backgroundColor = Color(0xFF007AFF), scaleFactor = scaleFactor)
-                                    Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
-                                    IosInputField(
-                                        label = "Tunnel DNS Servers",
-                                        value = config.dnsList,
-                                        onValueChange = { 
-                                            val cleaned = it.replace(Regex("\\s*,\\s*"), ",")
-                                            onUpdateConfig(config.copy(dnsList = cleaned)) 
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        placeholder = "1.1.1.1,1.0.0.1",
-                                        testTag = "dns_list_input",
-                                        scaleFactor = scaleFactor
+                            if (config.connectionMode == ConnectionMode.TUNNEL) {
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IosIconBadge(icon = Icons.Default.Dns, backgroundColor = Color(0xFF007AFF), scaleFactor = scaleFactor)
+                                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                        IosInputField(
+                                            label = "Tunnel DNS Servers",
+                                            value = config.dnsList,
+                                            onValueChange = { 
+                                                val cleaned = it.replace(Regex("\\s*,\\s*"), ",")
+                                                onUpdateConfig(config.copy(dnsList = cleaned)) 
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            placeholder = "1.1.1.1,1.0.0.1",
+                                            testTag = "dns_list_input",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                    Text(
+                                        text = "Separate multiple DNS IPs with a comma (e.g. 1.1.1.1,8.8.8.8) - no spaces required.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Yellow.copy(alpha = 0.8f),
+                                        fontSize = (10 * scaleFactor).sp,
+                                        modifier = Modifier.padding(start = (42 * scaleFactor).dp, top = 4.dp)
                                     )
                                 }
-                                Text(
-                                    text = "Separate multiple DNS IPs with a comma (e.g. 1.1.1.1,8.8.8.8) - no spaces required.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Yellow.copy(alpha = 0.8f),
-                                    fontSize = (10 * scaleFactor).sp,
-                                    modifier = Modifier.padding(start = (42 * scaleFactor).dp, top = 4.dp)
-                                )
                             }
                             HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                             IosInputFieldRow(
@@ -755,6 +673,204 @@ fun SettingsScreen(
                                 testTag = "peer_input",
                                 scaleFactor = scaleFactor
                             )
+                        }
+                    }
+                }
+            }
+
+            if ((config.protocol == AetherProtocol.ZERO_TRUST) && (searchQuery.isEmpty() || "Cloudflare Zero Trust Team Access Gateway ID Secret Token".contains(searchQuery, ignoreCase = true))) {
+                item {
+                    Column {
+                        IosSectionHeader(title = "CLOUDFLARE ZERO TRUST", scaleFactor = scaleFactor)
+                        IosGroupCard {
+                            Column {
+                                IosInputFieldRow(
+                                    icon = Icons.Default.Business,
+                                    iconBg = Color(0xFF5856D6),
+                                    label = "Organization Team Name",
+                                    value = config.teamName,
+                                    onValueChange = { onUpdateConfig(config.copy(teamName = it)) },
+                                    placeholder = "e.g. my-org",
+                                    testTag = "zt_team_input",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosInputFieldRow(
+                                    icon = Icons.Default.Language,
+                                    iconBg = Color(0xFF007AFF),
+                                    label = "Cloudflare Access Email",
+                                    value = config.accessEmail,
+                                    onValueChange = { onUpdateConfig(config.copy(accessEmail = it)) },
+                                    placeholder = "user@example.com",
+                                    testTag = "zt_email_input",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosSwitchRow(
+                                    icon = Icons.Default.Shield,
+                                    iconBg = Color(0xFF34C759),
+                                    title = "Gateway Filtering Proxy",
+                                    subtitle = "Route via org Gateway for filtering & logs",
+                                    checked = config.useGateway,
+                                    onCheckedChange = { onUpdateConfig(config.copy(useGateway = it)) },
+                                    testTag = "switch_zt_gateway",
+                                    scaleFactor = scaleFactor
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showAdvancedZeroTrust = !showAdvancedZeroTrust }
+                                        .padding(horizontal = (16 * scaleFactor).dp, vertical = (14 * scaleFactor).dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IosIconBadge(icon = Icons.Default.Lock, backgroundColor = Color(0xFF8E8E93), scaleFactor = scaleFactor)
+                                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                        Text(
+                                            text = "Advanced Authentication",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White,
+                                            fontSize = (15 * scaleFactor).sp
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = if (showAdvancedZeroTrust) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = IosSecondaryLabel,
+                                        modifier = Modifier.size((18 * scaleFactor).dp)
+                                    )
+                                }
+
+                                AnimatedVisibility(
+                                    visible = showAdvancedZeroTrust,
+                                    enter = fadeIn() + expandVertically(),
+                                    exit = fadeOut() + shrinkVertically()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(IosGroupBackground.copy(alpha = 0.4f))
+                                            .padding((14 * scaleFactor).dp),
+                                        verticalArrangement = Arrangement.spacedBy((12 * scaleFactor).dp)
+                                    ) {
+                                        IosInputField(
+                                            label = "Access Client ID",
+                                            value = config.accessId,
+                                            onValueChange = { onUpdateConfig(config.copy(accessId = it)) },
+                                            placeholder = "Required for Service Tokens",
+                                            testTag = "zt_access_id",
+                                            scaleFactor = scaleFactor
+                                        )
+                                        IosInputField(
+                                            label = "Access Client Secret",
+                                            value = config.accessSecret,
+                                            onValueChange = { onUpdateConfig(config.copy(accessSecret = it)) },
+                                            placeholder = "Required for Service Tokens",
+                                            testTag = "zt_access_secret",
+                                            scaleFactor = scaleFactor
+                                        )
+                                        IosInputField(
+                                            label = "Manual JWT Access Token",
+                                            value = config.accessToken,
+                                            onValueChange = { onUpdateConfig(config.copy(accessToken = it)) },
+                                            placeholder = "Optional overrides auth",
+                                            testTag = "zt_access_token",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (config.connectionMode == ConnectionMode.TUNNEL && (searchQuery.isEmpty() || "Advanced Security Kill Switch IPv6 Leak Protection Smart Reconnect".contains(searchQuery, ignoreCase = true))) {
+                item {
+                    IosSectionHeader(title = "ADVANCED SECURITY & AUTO-RECOVERY", scaleFactor = scaleFactor)
+                    IosGroupCard {
+                        Column {
+                            IosSwitchRow(
+                                icon = Icons.Default.VpnLock,
+                                iconBg = Color(0xFF5856D6),
+                                title = "Strict Kill Switch",
+                                subtitle = "Prevent any leak even during manual stop",
+                                checked = config.strictKillSwitch,
+                                onCheckedChange = { onUpdateConfig(config.copy(strictKillSwitch = it)) },
+                                testTag = "switch_strict_kill_switch",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.Lock,
+                                iconBg = Color(0xFFFF3B30),
+                                title = "Kill Switch",
+                                subtitle = "Block traffic when VPN is disconnected",
+                                checked = config.killSwitch,
+                                onCheckedChange = { onUpdateConfig(config.copy(killSwitch = it)) },
+                                testTag = "switch_kill_switch",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.Security,
+                                iconBg = Color(0xFF5856D6),
+                                title = "IPv6 Leak Protection",
+                                subtitle = "Force all IPv6 traffic through tunnel",
+                                checked = config.ipv6Leak,
+                                onCheckedChange = { onUpdateConfig(config.copy(ipv6Leak = it)) },
+                                testTag = "switch_ipv6_leak",
+                                scaleFactor = scaleFactor
+                            )
+                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            IosSwitchRow(
+                                icon = Icons.Default.Restore,
+                                iconBg = Color(0xFF34C759),
+                                title = "Smart Reconnect",
+                                subtitle = "Attempt auto-recovery on network failure",
+                                checked = config.smartReconnect,
+                                onCheckedChange = { onUpdateConfig(config.copy(smartReconnect = it)) },
+                                testTag = "switch_smart_reconnect",
+                                scaleFactor = scaleFactor
+                            )
+                            if (config.smartReconnect) {
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = (16 * scaleFactor).dp, vertical = (12 * scaleFactor).dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        IosIconBadge(icon = Icons.Default.Repeat, backgroundColor = Color(0xFF8E8E93), scaleFactor = scaleFactor)
+                                        Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                        IosInputField(
+                                            label = "Max Retries",
+                                            value = config.reconnectRetryLimit.toString(),
+                                            onValueChange = { onUpdateConfig(config.copy(reconnectRetryLimit = it.toIntOrNull() ?: 10)) },
+                                            placeholder = "10",
+                                            keyboardType = KeyboardType.Number,
+                                            testTag = "reconnect_limit_input",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
+                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        IosInputField(
+                                            label = "Delay (Secs)",
+                                            value = config.reconnectSecs.toString(),
+                                            onValueChange = { onUpdateConfig(config.copy(reconnectSecs = it.toIntOrNull() ?: 2)) },
+                                            placeholder = "2",
+                                            keyboardType = KeyboardType.Number,
+                                            testTag = "reconnect_secs_input",
+                                            scaleFactor = scaleFactor
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -42,7 +42,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -135,6 +134,7 @@ fun MainScreen(viewModel: AetherViewModel) {
     val isOnboardingComplete by viewModel.isOnboardingComplete.collectAsStateWithLifecycle()
     val onboardingState by onboardingViewModel.state.collectAsStateWithLifecycle()
     val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+    val crashLog by viewModel.crashLog.collectAsStateWithLifecycle()
     val currentStep by rememberUpdatedState(onboardingState.currentStep)
 
     DisposableEffect(lifecycleOwner) {
@@ -150,6 +150,8 @@ fun MainScreen(viewModel: AetherViewModel) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val toastState by viewModel.toastState.collectAsStateWithLifecycle()
+
     SideEffect {
         activity?.enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.BLACK),
@@ -160,71 +162,75 @@ fun MainScreen(viewModel: AetherViewModel) {
         }
     }
 
-    if (!isOnboardingComplete) {
-        val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            val intent = VpnService.prepare(context)
-            if (intent == null) {
-                onboardingViewModel.moveToNextStep()
-            }
-        }
-        val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                onboardingViewModel.moveToNextStep()
-            } else {
-                onboardingViewModel.showNotificationError()
-            }
-        }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenWidth = this.maxWidth
+        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
 
-        OnboardingScreen(
-            state = onboardingState,
-            onGetStarted = { onboardingViewModel.moveToNextStep() },
-            onRetryRegistration = { onboardingViewModel.startProtocolTests() },
-            onCancelRegistration = { onboardingViewModel.cancelTests() },
-            onUpdateScanMode = { onboardingViewModel.updateScanMode(it) },
-            onRequestVpnPermission = {
+        if (!isOnboardingComplete) {
+            val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 val intent = VpnService.prepare(context)
-                if (intent != null) vpnLauncher.launch(intent) else onboardingViewModel.moveToNextStep()
-            },
-            onRequestNotificationPermission = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else {
-                    onboardingViewModel.moveToNextStep()
-                }
-            },
-            onRequestBatteryOptimization = {
-                if (context.isIgnoringBatteryOptimizations()) {
-                    onboardingViewModel.moveToNextStep()
-                } else {
-                    runCatching {
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = "package:${context.packageName}".toUri()
-                        }
-                        context.startActivity(intent)
-                    }.onFailure {
-                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                        context.startActivity(intent)
-                    }
-                }
-            },
-            onFinish = onboardingViewModel::moveToNextStep
-        )
-        return
-    }
+                if (intent == null) onboardingViewModel.moveToNextStep()
+            }
+            val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+                if (isGranted) onboardingViewModel.moveToNextStep() else onboardingViewModel.showNotificationError()
+            }
 
-    if (updateInfo != null) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val scaleFactor = (this.maxWidth.value / 411f).coerceIn(0.7f, 1.1f)
+            OnboardingScreen(
+                state = onboardingState,
+                onGetStarted = { onboardingViewModel.moveToNextStep() },
+                onRetryRegistration = { onboardingViewModel.startProtocolTests() },
+                onCancelRegistration = { onboardingViewModel.cancelTests() },
+                onUpdateScanMode = { onboardingViewModel.updateScanMode(it) },
+                onRequestVpnPermission = {
+                    val intent = VpnService.prepare(context)
+                    if (intent != null) vpnLauncher.launch(intent) else onboardingViewModel.moveToNextStep()
+                },
+                onRequestNotificationPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        onboardingViewModel.moveToNextStep()
+                    }
+                },
+                onRequestBatteryOptimization = {
+                    if (context.isIgnoringBatteryOptimizations()) {
+                        onboardingViewModel.moveToNextStep()
+                    } else {
+                        runCatching {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = "package:${context.packageName}".toUri()
+                            }
+                            context.startActivity(intent)
+                        }.onFailure {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            context.startActivity(intent)
+                        }
+                    }
+                },
+                onFinish = onboardingViewModel::moveToNextStep
+            )
+        } else if (crashLog != null) {
+            CrashReportScreen(
+                crashLog = crashLog!!,
+                onRestart = { viewModel.clearCrashLog() },
+                onShowToast = { viewModel.showToast(it) }
+            )
+        } else if (updateInfo != null) {
             UpdateScreen(
                 info = updateInfo!!,
                 onDismiss = { viewModel.dismissUpdate() },
                 scaleFactor = scaleFactor
             )
+        } else {
+            DashboardContent(viewModel)
         }
-        return
-    }
 
-    DashboardContent(viewModel)
+        IosToast(
+            message = toastState?.message,
+            isError = toastState?.isError ?: false,
+            scaleFactor = scaleFactor
+        )
+    }
 }
 
 @SuppressLint("BatteryLife")
@@ -235,7 +241,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
     var showSplitTunneling by remember { mutableStateOf(false) }
     
     val config by viewModel.config.collectAsStateWithLifecycle()
-    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val elapsedSeconds by viewModel.elapsedSeconds.collectAsStateWithLifecycle()
     val sessionTraffic by viewModel.sessionTraffic.collectAsStateWithLifecycle()
     val ipInfo by viewModel.ipInfo.collectAsStateWithLifecycle()
@@ -245,7 +251,6 @@ private fun DashboardContent(viewModel: AetherViewModel) {
     val importConflictRules by viewModel.importConflictRules.collectAsStateWithLifecycle()
     val importErrorMessage by viewModel.importErrorMessage.collectAsStateWithLifecycle()
     val isOptimizingMtu by viewModel.isOptimizingMtu.collectAsStateWithLifecycle()
-    val toastState by viewModel.toastState.collectAsStateWithLifecycle()
     val isWaitingForLoginCode by viewModel.isWaitingForLoginCode.collectAsStateWithLifecycle()
     val scrollToZeroTrust by viewModel.scrollToZeroTrust.collectAsStateWithLifecycle()
     var showRoutingRules by remember { mutableStateOf(false) }
@@ -294,13 +299,13 @@ private fun DashboardContent(viewModel: AetherViewModel) {
         val screenWidth = this.maxWidth
         val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
 
-        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxSize()) {
             Crossfade(targetState = if (showRoutingRules) 100 else if (showSplitTunneling) 99 else selectedTab, animationSpec = tween(400), label = "screen_transition") { tab ->
                 saveableStateHolder.SaveableStateProvider(tab) {
                     when (tab) {
                         0 -> DashboardScreen(
                             config = config,
-                            connectionState = connectionState,
+                            connectionStatus = connectionStatus,
                             elapsedSeconds = elapsedSeconds,
                             sessionTraffic = sessionTraffic,
                             ipInfo = ipInfo,
@@ -321,7 +326,6 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                             onUpdateTunnelEngine = { viewModel.updateTunnelEngine(it) },
                             onApplyPreset = { preset ->
                                 viewModel.applyPreset(preset)
-                                viewModel.showToast("Applied preset profile!")
                             },
                             onOpenSplitTunneling = { showSplitTunneling = true },
                             onOpenRoutingRules = { showRoutingRules = true },
@@ -382,12 +386,6 @@ private fun DashboardContent(viewModel: AetherViewModel) {
         if (!showSplitTunneling && !showRoutingRules) {
             CurvedNavBar(selectedTab = selectedTab, navBarHeight = navBarHeight, onTabSelected = { selectedTab = it }, modifier = Modifier.align(Alignment.BottomCenter))
         }
-
-        IosToast(
-            message = toastState?.message,
-            isError = toastState?.isError ?: false,
-            scaleFactor = scaleFactor
-        )
 
         if (isWaitingForLoginCode) {
             ZeroTrustLoginDialog(

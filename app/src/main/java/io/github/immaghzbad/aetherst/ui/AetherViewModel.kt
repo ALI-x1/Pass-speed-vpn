@@ -19,6 +19,8 @@ import io.github.immaghzbad.aetherst.data.LogRepository
 import io.github.immaghzbad.aetherst.data.PingRepository
 import io.github.immaghzbad.aetherst.data.PingState
 import io.github.immaghzbad.aetherst.model.*
+import io.github.immaghzbad.aetherst.core.ConnectionController
+import io.github.immaghzbad.aetherst.service.AetherProxyService
 import io.github.immaghzbad.aetherst.service.AetherVpnService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class AetherViewModel(context: Context) : ViewModel() {
     private val appContext = context.applicationContext
@@ -45,10 +48,10 @@ class AetherViewModel(context: Context) : ViewModel() {
 
     val config: StateFlow<AetherConfig> = repository.config
     val isOnboardingComplete: StateFlow<Boolean> = repository.isOnboardingComplete
-    val connectionState: StateFlow<ConnectionState> = AetherVpnService.serviceState
-    val elapsedSeconds: StateFlow<Long> = AetherVpnService.elapsedSeconds
-    val sessionTraffic = AetherVpnService.sessionTraffic
-    val isWaitingForLoginCode = AetherVpnService.isWaitingForCode
+    val connectionStatus: StateFlow<ConnectionStatus> = ConnectionController.status
+    val elapsedSeconds: StateFlow<Long> = ConnectionController.elapsedSeconds
+    val sessionTraffic = ConnectionController.sessionTraffic
+    val isWaitingForLoginCode = ConnectionController.getInstance(appContext).isWaitingForCode
     val logs: StateFlow<List<LogEntry>> = LogRepository.logs
     val ipInfo: StateFlow<IpInfo> = IpInfoRepository.ipInfo
     val pingState: StateFlow<PingState> = PingRepository.pingState
@@ -78,12 +81,34 @@ class AetherViewModel(context: Context) : ViewModel() {
     private val _isOptimizingMtu = MutableStateFlow(false)
     val isOptimizingMtu: StateFlow<Boolean> = _isOptimizingMtu.asStateFlow()
 
+    private val _crashLog = MutableStateFlow<String?>(null)
+    val crashLog: StateFlow<String?> = _crashLog.asStateFlow()
+
     init {
         LogRepository.initialize(appContext)
         loadInstalledApps()
         checkForUpdates()
-        observeConnectionState()
+        observeConnectionStatus()
         checkBatteryOptimizationStatus()
+        checkLastCrash()
+    }
+
+    private fun checkLastCrash() {
+        viewModelScope.launch {
+            val file = File(appContext.cacheDir, "last_crash.log")
+            if (file.exists()) {
+                val log = file.readText()
+                if (log.isNotEmpty()) {
+                    _crashLog.value = log
+                }
+            }
+        }
+    }
+
+    fun clearCrashLog() {
+        val file = File(appContext.cacheDir, "last_crash.log")
+        if (file.exists()) file.delete()
+        _crashLog.value = null
     }
 
     fun toggleVpn(context: Context, onPermissionRequired: () -> Unit) {
@@ -104,19 +129,27 @@ class AetherViewModel(context: Context) : ViewModel() {
             }
         }
 
-        val currentState = connectionState.value
-        if (currentState == ConnectionState.DISCONNECTING) return
+        val currentState = connectionStatus.value
+        if (currentState == ConnectionStatus.STOPPING) return
 
         try {
-            if ((currentState == ConnectionState.DISCONNECTED) || (currentState == ConnectionState.ERROR)) {
-                val prepareIntent = VpnService.prepare(context)
-                if (prepareIntent != null) {
-                    onPermissionRequired()
-                    return
+            if ((currentState == ConnectionStatus.STOPPED) || (currentState == ConnectionStatus.ERROR)) {
+                if (config.connectionMode == ConnectionMode.TUNNEL) {
+                    val prepareIntent = VpnService.prepare(context)
+                    if (prepareIntent != null) {
+                        onPermissionRequired()
+                        return
+                    }
+                    AetherVpnService.startVpn(context)
+                } else {
+                    AetherProxyService.startProxy(context)
                 }
-                AetherVpnService.startVpn(context)
             } else {
-                AetherVpnService.stopVpn(context)
+                if (config.connectionMode == ConnectionMode.TUNNEL) {
+                    AetherVpnService.stopVpn(context)
+                } else {
+                    AetherProxyService.stopProxy(context)
+                }
             }
         } catch (exception: Exception) {
             LogRepository.e("[UI] Connection toggle failed: ${exception.localizedMessage}")
@@ -124,7 +157,40 @@ class AetherViewModel(context: Context) : ViewModel() {
     }
 
     fun updateConfig(newConfig: AetherConfig) {
+        val oldConfig = repository.config.value
         repository.updateConfig(newConfig)
+        
+        if (oldConfig.connectionMode != newConfig.connectionMode) {
+            switchMode(oldConfig.connectionMode, newConfig.connectionMode)
+        }
+    }
+
+    private fun switchMode(oldMode: ConnectionMode, newMode: ConnectionMode) {
+        val state = connectionStatus.value
+        if (state == ConnectionStatus.STOPPED || state == ConnectionStatus.ERROR || state == ConnectionStatus.STOPPING) return
+
+        viewModelScope.launch {
+            if (oldMode == ConnectionMode.TUNNEL) {
+                AetherVpnService.stopVpn(appContext)
+            } else {
+                AetherProxyService.stopProxy(appContext)
+            }
+
+            withTimeoutOrNull(5.seconds) {
+                connectionStatus.first { it == ConnectionStatus.STOPPED || it == ConnectionStatus.ERROR }
+                true
+            }
+
+            delay(500.milliseconds)
+
+            if (newMode == ConnectionMode.TUNNEL) {
+                if (VpnService.prepare(appContext) == null) {
+                    AetherVpnService.startVpn(appContext)
+                }
+            } else {
+                AetherProxyService.startProxy(appContext)
+            }
+        }
     }
 
     fun updateTunnelEngine(engine: TunnelEngine) {
@@ -286,16 +352,17 @@ class AetherViewModel(context: Context) : ViewModel() {
     }
 
     fun submitLoginCode(code: String) {
-        AetherVpnService.submitLoginCode(code)
+        ConnectionController.getInstance(appContext).submitLoginCode(code)
     }
 
+    private var toastJob: Job? = null
+
     fun showToast(message: String, isError: Boolean = false) {
+        toastJob?.cancel()
         _toastState.value = ToastState(message, isError)
-        viewModelScope.launch {
-            delay(2500.milliseconds)
-            if (_toastState.value?.message == message) {
-                _toastState.value = null
-            }
+        toastJob = viewModelScope.launch {
+            delay(5000.milliseconds)
+            _toastState.value = null
         }
     }
 
@@ -468,8 +535,8 @@ class AetherViewModel(context: Context) : ViewModel() {
 
     fun refreshIpInfo() {
         viewModelScope.launch {
-            val state = connectionState.value
-            if (state == ConnectionState.CONNECTED) {
+            val state = connectionStatus.value
+            if (state == ConnectionStatus.RUNNING) {
                 val cfg = config.value
                 IpInfoRepository.fetchIpInfo(cfg.socksHost, cfg.socksPort.toIntOrNull() ?: 1819, useProxy = true)
             } else {
@@ -480,8 +547,8 @@ class AetherViewModel(context: Context) : ViewModel() {
 
     fun refreshPing() {
         viewModelScope.launch {
-            val state = connectionState.value
-            if (state == ConnectionState.CONNECTED) {
+            val state = connectionStatus.value
+            if (state == ConnectionStatus.RUNNING) {
                 val cfg = config.value
                 PingRepository.runPing(cfg.socksHost, cfg.socksPort.toIntOrNull() ?: 1819, useProxy = true)
             } else {
@@ -504,14 +571,19 @@ class AetherViewModel(context: Context) : ViewModel() {
     }
 
     private fun restartVpnIfActive() {
-        val state = connectionState.value
-        if (state == ConnectionState.DISCONNECTED || state == ConnectionState.ERROR || state == ConnectionState.DISCONNECTING) return
+        val state = connectionStatus.value
+        if (state == ConnectionStatus.STOPPED || state == ConnectionStatus.ERROR || state == ConnectionStatus.STOPPING) return
 
         viewModelScope.launch {
-            AetherVpnService.stopVpn(appContext)
+            val config = repository.config.value
+            if (config.connectionMode == ConnectionMode.TUNNEL) {
+                AetherVpnService.stopVpn(appContext)
+            } else {
+                AetherProxyService.stopProxy(appContext)
+            }
 
             val stopped = withTimeoutOrNull(3500.milliseconds) {
-                connectionState.first { it == ConnectionState.DISCONNECTED || it == ConnectionState.ERROR }
+                connectionStatus.first { it == ConnectionStatus.STOPPED || it == ConnectionStatus.ERROR }
                 true
             } == true
 
@@ -519,17 +591,21 @@ class AetherViewModel(context: Context) : ViewModel() {
 
             delay(300.milliseconds)
 
-            if (VpnService.prepare(appContext) == null) {
-                AetherVpnService.startVpn(appContext)
+            if (config.connectionMode == ConnectionMode.PROXY_ONLY || VpnService.prepare(appContext) == null) {
+                if (config.connectionMode == ConnectionMode.TUNNEL) {
+                    AetherVpnService.startVpn(appContext)
+                } else {
+                    AetherProxyService.startProxy(appContext)
+                }
             }
         }
     }
 
-    private fun observeConnectionState() {
+    private fun observeConnectionStatus() {
         viewModelScope.launch {
-            connectionState.collect { state ->
+            connectionStatus.collect { state ->
                 when (state) {
-                    ConnectionState.CONNECTED -> {
+                    ConnectionStatus.RUNNING -> {
                         val cfg = config.value
                         val host = cfg.socksHost
                         val port = cfg.socksPort.toIntOrNull() ?: 1819
@@ -538,7 +614,7 @@ class AetherViewModel(context: Context) : ViewModel() {
                         viewModelScope.launch { PingRepository.runPing(host, port, useProxy = true) }
                     }
 
-                    ConnectionState.DISCONNECTED -> {
+                    ConnectionStatus.STOPPED -> {
                         viewModelScope.launch { IpInfoRepository.fetchIpInfo(useProxy = false) }
                         viewModelScope.launch { PingRepository.runPing(useProxy = false) }
                     }

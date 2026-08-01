@@ -1,56 +1,29 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
@@ -60,16 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.immaghzbad.aetherst.data.IpInfo
 import io.github.immaghzbad.aetherst.data.PingState
-import io.github.immaghzbad.aetherst.model.AetherConfig
-import io.github.immaghzbad.aetherst.model.AetherProtocol
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.keyframes
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
-import io.github.immaghzbad.aetherst.model.ConnectionState
+import io.github.immaghzbad.aetherst.model.*
 import kotlinx.coroutines.launch
-import io.github.immaghzbad.aetherst.model.SessionTraffic
 import java.util.Locale
 
 private val IosCardBg = Color(0xFF1C1C1E)
@@ -83,7 +48,7 @@ private val IosErrorRed = Color(0xFFFF3B30)
 @Composable
 fun DashboardScreen(
     config: AetherConfig,
-    connectionState: ConnectionState,
+    connectionStatus: ConnectionStatus,
     elapsedSeconds: Long,
     sessionTraffic: SessionTraffic,
     ipInfo: IpInfo = IpInfo(),
@@ -95,6 +60,14 @@ fun DashboardScreen(
     onShowToast: (String, Boolean) -> Unit = { _, _ -> },
     bottomContentPadding: Dp = 0.dp
 ) {
+    var showProxyOverlay by remember { mutableStateOf(true) }
+
+    LaunchedEffect(connectionStatus) {
+        if (connectionStatus != ConnectionStatus.RUNNING) {
+            showProxyOverlay = true
+        }
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -102,29 +75,29 @@ fun DashboardScreen(
     ) {
         val screenWidth = this.maxWidth
         val screenHeight = this.maxHeight
-        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.65f, 1.1f)
+        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
         val isCompactHeight = screenHeight < 640.dp
         val isVeryCompactHeight = screenHeight < 580.dp
-        val horizontalPadding = if (screenWidth < 360.dp) 8.dp else 16.dp
+        val horizontalPadding = if (screenWidth < 360.dp) 12.dp else 16.dp
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
                     start = horizontalPadding,
-                    top = 8.dp,
                     end = horizontalPadding,
-                    bottom = bottomContentPadding + 8.dp
+                    bottom = bottomContentPadding + 12.dp
                 ),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(if (screenWidth < 360.dp) 8.dp else 12.dp)
+                modifier = Modifier.statusBarsPadding().padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy((14 * scaleFactor).dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top
                 ) {
                     Column {
                         Text(
@@ -132,33 +105,50 @@ fun DashboardScreen(
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
-                            fontSize = (24 * scaleFactor).sp,
-                            lineHeight = (28 * scaleFactor).sp
+                            fontSize = (26 * scaleFactor).sp,
+                            lineHeight = (30 * scaleFactor).sp
                         )
                         Text(
-                            text = "Secure & Private Tunneling",
+                            text = if (config.connectionMode == ConnectionMode.TUNNEL) "Secure & Private Tunneling" else "High-Performance Local Proxy",
                             style = MaterialTheme.typography.bodySmall,
                             color = IosSecondaryLabel,
-                            fontSize = (10 * scaleFactor).sp
+                            fontSize = (12 * scaleFactor).sp,
+                            lineHeight = (16 * scaleFactor).sp
                         )
                     }
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = IosGroupBg
-                    ) {
-                        Text(
-                            text = "v1.2.0",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = IosActiveBlue,
-                            fontSize = (7 * scaleFactor).sp
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (config.connectionMode == ConnectionMode.PROXY_ONLY && connectionStatus == ConnectionStatus.RUNNING) {
+                            IconButton(
+                                onClick = { showProxyOverlay = true },
+                                modifier = Modifier.size((32 * scaleFactor).dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Proxy Info",
+                                    tint = IosActiveBlue,
+                                    modifier = Modifier.size((22 * scaleFactor).dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = IosGroupBg
+                        ) {
+                            Text(
+                                text = "v1.3.0",
+                                modifier = Modifier.padding(horizontal = (12 * scaleFactor).dp, vertical = (6 * scaleFactor).dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = IosActiveBlue,
+                                fontSize = (10 * scaleFactor).sp
+                            )
+                        }
                     }
                 }
 
                 IosStatusHeroCard(
-                    connectionState = connectionState,
+                    connectionStatus = connectionStatus,
                     elapsedSeconds = elapsedSeconds,
                     sessionTraffic = sessionTraffic,
                     config = config,
@@ -171,7 +161,7 @@ fun DashboardScreen(
                     scaleFactor = scaleFactor
                 )
 
-                if (!isVeryCompactHeight && connectionState == ConnectionState.ERROR) {
+                if (!isVeryCompactHeight && connectionStatus == ConnectionStatus.ERROR) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -207,7 +197,7 @@ fun DashboardScreen(
                 val buttonSize = (minDim * 0.35f).coerceIn(100.dp, 160.dp)
                 
                 IosPowerButton(
-                    connectionState = connectionState,
+                    connectionStatus = connectionStatus,
                     onToggle = onToggleVpn,
                     size = buttonSize
                 )
@@ -222,19 +212,180 @@ fun DashboardScreen(
                     IosProtocolSegmentedControl(
                         selectedProtocol = config.protocol,
                         onProtocolSelected = onUpdateProtocol,
-                        enabled = connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.ERROR,
+                        enabled = connectionStatus == ConnectionStatus.STOPPED || connectionStatus == ConnectionStatus.ERROR,
                         scaleFactor = scaleFactor
                     )
                 }
             }
         }
+
+        val offsetY = remember { Animatable(0f) }
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(showProxyOverlay) {
+            if (showProxyOverlay) {
+                offsetY.snapTo(0f)
+            }
+        }
+
+        AnimatedVisibility(
+            visible = config.connectionMode == ConnectionMode.PROXY_ONLY && connectionStatus == ConnectionStatus.RUNNING && showProxyOverlay,
+            enter = slideInVertically { -it } + fadeIn(),
+            exit = slideOutVertically { -it } + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 12.dp)
+                .graphicsLayer { translationY = offsetY.value }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragEnd = {
+                            scope.launch {
+                                if (offsetY.value < -100f) {
+                                    showProxyOverlay = false
+                                } else {
+                                    offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                }
+                            }
+                        },
+                        onVerticalDrag = { _, dragAmount ->
+                            scope.launch {
+                                offsetY.snapTo((offsetY.value + dragAmount).coerceAtMost(20f))
+                            }
+                        }
+                    )
+                }
+        ) {
+            ProxyOverlayPill(
+                host = config.socksHost,
+                socksPort = config.socksPort,
+                httpPort = config.httpPort,
+                onHide = { showProxyOverlay = false },
+                onCopy = { 
+                    onShowToast("Address copied: $it", false)
+                },
+                scaleFactor = scaleFactor
+            )
+        }
+    }
+}
+
+@Composable
+fun ProxyOverlayPill(
+    host: String,
+    socksPort: String,
+    httpPort: String,
+    onHide: () -> Unit,
+    onCopy: (String) -> Unit,
+    scaleFactor: Float
+) {
+    val clipboardManager = LocalClipboardManager.current
+    val socksAddress = "$host:$socksPort"
+    val httpAddress = "$host:$httpPort"
+
+    Surface(
+        modifier = Modifier
+            .widthIn(max = 400.dp)
+            .padding(horizontal = 8.dp)
+            .shadow(24.dp, RoundedCornerShape(20.dp), spotColor = IosActiveBlue.copy(alpha = 0.4f)),
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF1C1C1E).copy(alpha = 0.95f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(IosActiveBlue.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Dns, null, tint = IosActiveBlue, modifier = Modifier.size(20.dp))
+            }
+            
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ProxyCopyRow(
+                    label = "SOCKS5",
+                    address = socksAddress,
+                    onCopy = {
+                        clipboardManager.setText(AnnotatedString(socksAddress))
+                        onCopy(socksAddress)
+                    },
+                    scaleFactor = scaleFactor
+                )
+                ProxyCopyRow(
+                    label = "HTTP",
+                    address = httpAddress,
+                    onCopy = {
+                        clipboardManager.setText(AnnotatedString(httpAddress))
+                        onCopy(httpAddress)
+                    },
+                    scaleFactor = scaleFactor
+                )
+            }
+
+            VerticalDivider(modifier = Modifier.height(36.dp), thickness = 1.dp, color = Color.White.copy(alpha = 0.1f))
+
+            IconButton(
+                onClick = onHide,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(Icons.Default.Close, null, tint = IosSecondaryLabel, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProxyCopyRow(
+    label: String,
+    address: String,
+    onCopy: () -> Unit,
+    scaleFactor: Float
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onCopy() }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Text(
+                text = "$label:",
+                style = MaterialTheme.typography.labelSmall,
+                color = IosActiveBlue,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = (9 * scaleFactor).sp
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = address,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = (12 * scaleFactor).sp,
+                maxLines = 1
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ContentCopy,
+            contentDescription = "Copy",
+            tint = Color.White.copy(alpha = 0.6f),
+            modifier = Modifier.size((14 * scaleFactor).dp)
+        )
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun IosStatusHeroCard(
-    connectionState: ConnectionState,
+    connectionStatus: ConnectionStatus,
     elapsedSeconds: Long,
     sessionTraffic: SessionTraffic,
     config: AetherConfig,
@@ -247,11 +398,11 @@ fun IosStatusHeroCard(
     scaleFactor: Float = 1f
 ) {
     val statusColor by animateColorAsState(
-        targetValue = when (connectionState) {
-            ConnectionState.CONNECTED -> IosActiveGreen
-            ConnectionState.SCANNING, ConnectionState.VALIDATING, ConnectionState.RECONNECTING, ConnectionState.DISCONNECTING -> IosScanningAmber
-            ConnectionState.ERROR -> IosErrorRed
-            ConnectionState.DISCONNECTED -> IosSecondaryLabel
+        targetValue = when (connectionStatus) {
+            ConnectionStatus.RUNNING -> IosActiveGreen
+            ConnectionStatus.STARTING, ConnectionStatus.VALIDATING, ConnectionStatus.RECONNECTING, ConnectionStatus.STOPPING -> IosScanningAmber
+            ConnectionStatus.ERROR -> IosErrorRed
+            ConnectionStatus.STOPPED -> IosSecondaryLabel
         },
         label = "statusColor"
     )
@@ -292,14 +443,14 @@ fun IosStatusHeroCard(
                         )
                         Spacer(modifier = Modifier.width((5 * scaleFactor).dp))
                                 Text(
-                                    text = when (connectionState) {
-                                        ConnectionState.CONNECTED -> "PROTECTED & CONNECTED"
-                                        ConnectionState.SCANNING -> "FINDING SERVERS..."
-                                        ConnectionState.VALIDATING -> "ESTABLISHING LINK..."
-                                        ConnectionState.RECONNECTING -> "RECONNECTING..."
-                                        ConnectionState.DISCONNECTING -> "DISCONNECTING..."
-                                        ConnectionState.ERROR -> "CONNECTION ERROR"
-                                        ConnectionState.DISCONNECTED -> "READY TO CONNECT"
+                                    text = when (connectionStatus) {
+                                        ConnectionStatus.RUNNING -> if (config.connectionMode == ConnectionMode.TUNNEL) "PROTECTED & CONNECTED" else "PROXY ACTIVE"
+                                        ConnectionStatus.STARTING -> "FINDING SERVERS..."
+                                        ConnectionStatus.VALIDATING -> "ESTABLISHING LINK..."
+                                        ConnectionStatus.RECONNECTING -> "RECONNECTING..."
+                                        ConnectionStatus.STOPPING -> "STOPPING..."
+                                        ConnectionStatus.ERROR -> "CONNECTION ERROR"
+                                        ConnectionStatus.STOPPED -> "READY TO CONNECT"
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
@@ -314,7 +465,7 @@ fun IosStatusHeroCard(
                         color = IosGroupBg
                     ) {
                         val protocolText = if (config.protocol == AetherProtocol.MASQUE) {
-                            if (config.h2Mode) "MASQUE (HTTP/2)" else "MASQUE (HTTP/3)"
+                            if (config.h2Mode) "MASQUE (H2)" else "MASQUE (H3)"
                         } else {
                             config.protocol.displayName
                         }
@@ -346,7 +497,7 @@ fun IosStatusHeroCard(
                         )
                     }
 
-                    if (connectionState == ConnectionState.CONNECTED) {
+                    if (connectionStatus == ConnectionStatus.RUNNING) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -384,10 +535,10 @@ fun IosStatusHeroCard(
                         }
                     } else {
                         Text(
-                            text = if (connectionState == ConnectionState.RECONNECTING) "RETRY" else "NO UPLINK",
+                            text = if (connectionStatus == ConnectionStatus.RECONNECTING) "RETRY" else "NO UPLINK",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = if (connectionState == ConnectionState.RECONNECTING) IosScanningAmber else IosSecondaryLabel,
+                            color = if (connectionStatus == ConnectionStatus.RECONNECTING) IosScanningAmber else IosSecondaryLabel,
                             modifier = Modifier.clickable { onRefreshPing() },
                             fontSize = (10 * scaleFactor).sp
                         )
@@ -405,7 +556,7 @@ fun IosStatusHeroCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     TrafficValue(
-                        label = "UPLOADED",
+                        label = "UPLOAD",
                         value = formatTrafficBytes(sessionTraffic.uploadedBytes),
                         color = IosActiveBlue,
                         alignment = Alignment.Start,
@@ -413,7 +564,7 @@ fun IosStatusHeroCard(
                         scaleFactor = scaleFactor
                     )
                     TrafficValue(
-                        label = "DOWNLOADED",
+                        label = "DOWNLOAD",
                         value = formatTrafficBytes(sessionTraffic.downloadedBytes),
                         color = IosActiveGreen,
                         alignment = Alignment.End,
@@ -555,24 +706,24 @@ fun IosConfigChip(label: String, value: String, scaleFactor: Float = 1f) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun IosPowerButton(
-    connectionState: ConnectionState,
+    connectionStatus: ConnectionStatus,
     onToggle: () -> Unit,
     size: Dp = 140.dp
 ) {
-    val isConnected = connectionState == ConnectionState.CONNECTED
-    val isWorking = connectionState == ConnectionState.SCANNING ||
-                    connectionState == ConnectionState.VALIDATING ||
-                    connectionState == ConnectionState.RECONNECTING ||
-                    connectionState == ConnectionState.DISCONNECTING
-    val isError = connectionState == ConnectionState.ERROR
-    val canToggle = connectionState != ConnectionState.DISCONNECTING
+    val isConnected = connectionStatus == ConnectionStatus.RUNNING
+    val isWorking = connectionStatus == ConnectionStatus.STARTING ||
+                    connectionStatus == ConnectionStatus.VALIDATING ||
+                    connectionStatus == ConnectionStatus.RECONNECTING ||
+                    connectionStatus == ConnectionStatus.STOPPING
+    val isError = connectionStatus == ConnectionStatus.ERROR
+    val canToggle = connectionStatus != ConnectionStatus.STOPPING
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scope = rememberCoroutineScope()
 
     val shakeOffset = remember { Animatable(0f) }
-    LaunchedEffect(connectionState) {
+    LaunchedEffect(connectionStatus) {
         if (isError) {
             shakeOffset.animateTo(
                 targetValue = 0f,

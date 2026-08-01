@@ -17,9 +17,11 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         enableEdgeToEdge()
         val viewModel = AetherViewModel(applicationContext)
+
         setContent {
             MyApplicationTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
