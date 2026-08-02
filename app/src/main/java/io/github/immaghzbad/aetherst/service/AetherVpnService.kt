@@ -153,6 +153,7 @@ class AetherVpnService : VpnService() {
                 val descriptor = vpnInterface ?: throw IllegalStateException("TUN descriptor unavailable")
 
                 val effectiveEngine = if (
+                    !config.tunnelAllApps &&
                     config.tunnelEngine == TunnelEngine.HEV_TUN2SOCKS &&
                     (config.blockedPackages.isNotEmpty() || config.routingRules.any { it.mode != io.github.immaghzbad.aetherst.model.RoutingMode.TUNNEL })
                 ) {
@@ -190,7 +191,7 @@ class AetherVpnService : VpnService() {
                         socksHost = config.socksHost,
                         socksPort = config.socksPort.toIntOrNull() ?: 1819,
                         mtu = 1280,
-                        blockedPackagesProvider = { config.blockedPackages },
+                        blockedPackagesProvider = { if (config.tunnelAllApps) emptySet() else config.blockedPackages },
                         routingEngine = routingEngine!!
                     ).apply { start() }
                 }
@@ -231,16 +232,18 @@ class AetherVpnService : VpnService() {
         }
 
         builder.addDisallowedApplication(packageName)
-        config.excludedPackages
-            .asSequence()
-            .filterNot { it == packageName }
-            .forEach { excludedPackage ->
-                try {
-                    builder.addDisallowedApplication(excludedPackage)
-                } catch (_: PackageManager.NameNotFoundException) {
-                    LogRepository.w("[Tun] Ignoring uninstalled package: $excludedPackage")
+        if (!config.tunnelAllApps) {
+            config.excludedPackages
+                .asSequence()
+                .filterNot { it == packageName }
+                .forEach { excludedPackage ->
+                    try {
+                        builder.addDisallowedApplication(excludedPackage)
+                    } catch (_: PackageManager.NameNotFoundException) {
+                        LogRepository.w("[Tun] Ignoring uninstalled package: $excludedPackage")
+                    }
                 }
-            }
+        }
 
         vpnInterface = builder.establish() ?: return false
         LogRepository.i("[Tun] [attempt=$attemptId] Established")
