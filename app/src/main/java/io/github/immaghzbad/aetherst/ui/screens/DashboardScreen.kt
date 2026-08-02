@@ -136,7 +136,7 @@ fun DashboardScreen(
                             color = IosGroupBg
                         ) {
                             Text(
-                                text = "v1.3.0",
+                                text = "v1.4.0",
                                 modifier = Modifier.padding(horizontal = (12 * scaleFactor).dp, vertical = (6 * scaleFactor).dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
