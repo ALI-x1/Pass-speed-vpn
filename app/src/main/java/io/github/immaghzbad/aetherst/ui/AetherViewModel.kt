@@ -32,8 +32,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -691,24 +689,25 @@ class AetherViewModel(context: Context) : ViewModel() {
         viewModelScope.launch {
             try {
                 val info = withContext(Dispatchers.IO) {
-                    val url = URL("https://raw.githubusercontent.com/immaghzbad/AetherST/refs/heads/main/update.json")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 5000
-                    conn.readTimeout = 5000
+                    val request = okhttp3.Request.Builder()
+                        .url("https://raw.githubusercontent.com/immaghzbad/AetherST/refs/heads/main/update.json")
+                        .build()
 
-                    if (conn.responseCode == 200) {
-                        val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
-                        val json = JSONObject(jsonStr)
+                    io.github.immaghzbad.aetherst.core.NetworkClient.instance.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val jsonStr = response.body?.string() ?: return@withContext null
+                            val json = JSONObject(jsonStr)
 
-                        UpdateInfo(
-                            version = json.getString("version"),
-                            versionCode = json.getInt("version_code"),
-                            isBeta = json.getBoolean("is_beta"),
-                            changelog = json.getString("changelog"),
-                            releaseUrl = json.getString("release_url")
-                        )
-                    } else {
-                        null
+                            UpdateInfo(
+                                version = json.getString("version"),
+                                versionCode = json.getInt("version_code"),
+                                isBeta = json.getBoolean("is_beta"),
+                                changelog = json.getString("changelog"),
+                                releaseUrl = json.getString("release_url")
+                            )
+                        } else {
+                            null
+                        }
                     }
                 }
 

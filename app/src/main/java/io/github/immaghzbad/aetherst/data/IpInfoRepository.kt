@@ -1,16 +1,16 @@
 package io.github.immaghzbad.aetherst.data
 
+import io.github.immaghzbad.aetherst.core.NetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 import org.json.JSONObject
-import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Proxy
-import java.net.URL
 import kotlin.time.Duration.Companion.milliseconds
 
 data class IpInfo(
@@ -61,25 +61,73 @@ object IpInfoRepository {
     private fun tryFetchFromIpWhois(socksHost: String, socksPort: Int): Boolean {
         return try {
             val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(socksHost, socksPort))
-            val url = URL("https://ipwho.is/")
-            val conn = url.openConnection(proxy) as HttpURLConnection
-            conn.connectTimeout = 6000
-            conn.readTimeout = 6000
-            conn.instanceFollowRedirects = true
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
-            conn.setRequestProperty("Accept", "application/json")
+            val client = NetworkClient.instance.newBuilder()
+                .proxy(proxy)
+                .connectTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .readTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
 
-            if (conn.responseCode == 200) {
-                val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
-                val json = JSONObject(jsonStr)
-                if (json.optBoolean("success", true)) {
+            val request = Request.Builder()
+                .url("https://ipwho.is/")
+                .header("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+                .header("Accept", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val jsonStr = response.body?.string() ?: return false
+                    val json = JSONObject(jsonStr)
+                    if (json.optBoolean("success", true)) {
+                        val ip = json.optString("ip", "")
+                        val country = json.optString("country", "Unknown")
+                        val countryCode = json.optString("country_code", "")
+                        val flagObj = json.optJSONObject("flag")
+                        val flagEmoji = flagObj?.optString("emoji", "")?.ifEmpty { getFlagEmoji(countryCode) }
+                            ?: getFlagEmoji(countryCode)
+
+                        if (ip.isNotEmpty()) {
+                            _ipInfo.value = IpInfo(
+                                ip = ip,
+                                country = country,
+                                countryCode = countryCode,
+                                flagEmoji = flagEmoji,
+                                isLoading = false
+                            )
+                            LogRepository.i("Geo-data synchronized: $ip ($country $flagEmoji)", "IpWhois")
+                            return true
+                        }
+                    }
+                }
+            }
+            false
+        } catch (e: Exception) {
+            LogRepository.w("ipwho.is via SOCKS error: ${e.localizedMessage}", "IpWhois")
+            false
+        }
+    }
+
+    private fun tryFetchFromIpApi(socksHost: String, socksPort: Int): Boolean {
+        return try {
+            val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(socksHost, socksPort))
+            val client = NetworkClient.instance.newBuilder()
+                .proxy(proxy)
+                .connectTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .readTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
+
+            val request = Request.Builder()
+                .url("https://ipapi.co/json/")
+                .header("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val jsonStr = response.body?.string() ?: return false
+                    val json = JSONObject(jsonStr)
                     val ip = json.optString("ip", "")
-                    val country = json.optString("country", "Unknown")
+                    val country = json.optString("country_name", "Unknown")
                     val countryCode = json.optString("country_code", "")
-                    val flagObj = json.optJSONObject("flag")
-                    val flagEmoji = flagObj?.optString("emoji", "")?.ifEmpty { getFlagEmoji(countryCode) }
-                        ?: getFlagEmoji(countryCode)
+                    val flagEmoji = getFlagEmoji(countryCode)
 
                     if (ip.isNotEmpty()) {
                         _ipInfo.value = IpInfo(
@@ -94,45 +142,6 @@ object IpInfoRepository {
                     }
                 }
             }
-            conn.disconnect()
-            false
-        } catch (e: Exception) {
-            LogRepository.w("ipwho.is via SOCKS error: ${e.localizedMessage}", "IpWhois")
-            false
-        }
-    }
-
-    private fun tryFetchFromIpApi(socksHost: String, socksPort: Int): Boolean {
-        return try {
-            val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(socksHost, socksPort))
-            val url = URL("https://ipapi.co/json/")
-            val conn = url.openConnection(proxy) as HttpURLConnection
-            conn.connectTimeout = 6000
-            conn.readTimeout = 6000
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
-
-            if (conn.responseCode == 200) {
-                val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
-                val json = JSONObject(jsonStr)
-                val ip = json.optString("ip", "")
-                val country = json.optString("country_name", "Unknown")
-                val countryCode = json.optString("country_code", "")
-                val flagEmoji = getFlagEmoji(countryCode)
-
-                if (ip.isNotEmpty()) {
-                    _ipInfo.value = IpInfo(
-                        ip = ip,
-                        country = country,
-                        countryCode = countryCode,
-                        flagEmoji = flagEmoji,
-                        isLoading = false
-                    )
-                    LogRepository.i("Geo-data synchronized: $ip ($country $flagEmoji)", "IpWhois")
-                    return true
-                }
-            }
-            conn.disconnect()
             false
         } catch (e: Exception) {
             LogRepository.w("ipapi.co via SOCKS error: ${e.localizedMessage}", "IpWhois")
@@ -142,21 +151,56 @@ object IpInfoRepository {
 
     private fun tryFetchDirectIpWhois(): Boolean {
         return try {
-            val url = URL("https://ipwho.is/")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.instanceFollowRedirects = true
-            if (conn.responseCode == 200) {
-                val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
-                val json = JSONObject(jsonStr)
-                if (json.optBoolean("success", true)) {
+            val request = Request.Builder()
+                .url("https://ipwho.is/")
+                .build()
+
+            NetworkClient.instance.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val jsonStr = response.body?.string() ?: return false
+                    val json = JSONObject(jsonStr)
+                    if (json.optBoolean("success", true)) {
+                        val ip = json.optString("ip", "")
+                        val country = json.optString("country", "Unknown")
+                        val countryCode = json.optString("country_code", "")
+                        val flagObj = json.optJSONObject("flag")
+                        val flagEmoji = flagObj?.optString("emoji", "")?.ifEmpty { getFlagEmoji(countryCode) }
+                            ?: getFlagEmoji(countryCode)
+
+                        if (ip.isNotEmpty()) {
+                            _ipInfo.value = IpInfo(
+                                ip = ip,
+                                country = country,
+                                countryCode = countryCode,
+                                flagEmoji = flagEmoji,
+                                isLoading = false
+                            )
+                            return true
+                        }
+                    }
+                }
+            }
+            false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun tryFetchDirectIpApi(): Boolean {
+        return try {
+            val request = Request.Builder()
+                .url("https://ipapi.co/json/")
+                .header("User-Agent", "Mozilla/5.0")
+                .build()
+
+            NetworkClient.instance.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val jsonStr = response.body?.string() ?: return false
+                    val json = JSONObject(jsonStr)
                     val ip = json.optString("ip", "")
-                    val country = json.optString("country", "Unknown")
+                    val country = json.optString("country_name", "Unknown")
                     val countryCode = json.optString("country_code", "")
-                    val flagObj = json.optJSONObject("flag")
-                    val flagEmoji = flagObj?.optString("emoji", "")?.ifEmpty { getFlagEmoji(countryCode) }
-                        ?: getFlagEmoji(countryCode)
+                    val flagEmoji = getFlagEmoji(countryCode)
 
                     if (ip.isNotEmpty()) {
                         _ipInfo.value = IpInfo(
@@ -170,40 +214,6 @@ object IpInfoRepository {
                     }
                 }
             }
-            conn.disconnect()
-            false
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun tryFetchDirectIpApi(): Boolean {
-        return try {
-            val url = URL("https://ipapi.co/json/")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-            if (conn.responseCode == 200) {
-                val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
-                val json = JSONObject(jsonStr)
-                val ip = json.optString("ip", "")
-                val country = json.optString("country_name", "Unknown")
-                val countryCode = json.optString("country_code", "")
-                val flagEmoji = getFlagEmoji(countryCode)
-
-                if (ip.isNotEmpty()) {
-                    _ipInfo.value = IpInfo(
-                        ip = ip,
-                        country = country,
-                        countryCode = countryCode,
-                        flagEmoji = flagEmoji,
-                        isLoading = false
-                    )
-                    return true
-                }
-            }
-            conn.disconnect()
             false
         } catch (_: Exception) {
             false

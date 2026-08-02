@@ -18,4 +18,6 @@
 -dontwarn okio.**
 -dontwarn javax.annotation.**
 -dontwarn org.conscrypt.**
--dontwarn com.squareup.okhttp3.**
+-dontwarn okhttp3.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**

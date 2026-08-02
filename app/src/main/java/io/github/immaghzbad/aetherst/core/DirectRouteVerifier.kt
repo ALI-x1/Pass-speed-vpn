@@ -10,12 +10,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.Request
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.time.Duration.Companion.milliseconds
 
 object DirectRouteVerifier {
     private data class ExitInfo(
@@ -46,7 +46,7 @@ object DirectRouteVerifier {
             try {
                 val direct = apiMutex.withLock {
                     val waitMs = GLOBAL_COOLDOWN_MS - (System.currentTimeMillis() - lastApiRequestAt.get())
-                    if (waitMs > 0) delay(waitMs)
+                    if (waitMs > 0) delay(waitMs.milliseconds)
                     lastApiRequestAt.set(System.currentTimeMillis())
                     fetchIpWhoIs(network) ?: fetchIpApi(network)
                 }
@@ -58,7 +58,7 @@ object DirectRouteVerifier {
                 var tunnel = IpInfoRepository.ipInfo.value
                 repeat(10) {
                     if (tunnel.ip.isNotEmpty()) return@repeat
-                    delay(500L)
+                    delay(500.milliseconds)
                     tunnel = IpInfoRepository.ipInfo.value
                 }
                 val tunnelIp = tunnel.ip.ifEmpty { "unknown" }
@@ -112,23 +112,29 @@ object DirectRouteVerifier {
     }
 
     private fun fetch(network: Network, endpoint: String, parser: (JSONObject) -> ExitInfo?): ExitInfo? {
-        var connection: HttpURLConnection? = null
         return try {
-            val conn = network.openConnection(URL(endpoint)) as HttpURLConnection
-            connection = conn
-            conn.connectTimeout = 6000
-            conn.readTimeout = 6000
-            conn.instanceFollowRedirects = true
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("User-Agent", "AetherST/DirectRouteVerifier")
-            conn.setRequestProperty("Accept", "application/json")
-            if (conn.responseCode != HttpURLConnection.HTTP_OK) return null
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            parser(JSONObject(body))
+            val client = NetworkClient.instance.newBuilder()
+                .socketFactory(network.socketFactory)
+                .connectTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .readTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
+
+            val request = Request.Builder()
+                .url(endpoint)
+                .header("User-Agent", "AetherST/DirectRouteVerifier")
+                .header("Accept", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: return null
+                    parser(JSONObject(body))
+                } else {
+                    null
+                }
+            }
         } catch (_: Exception) {
             null
-        } finally {
-            connection?.disconnect()
         }
     }
 }
