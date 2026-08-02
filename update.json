@@ -1,7 +1,7 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.2",
   "version_code": 1,
   "is_beta": false,
-  "changelog": "• Added 'Tunnel Whole Device' switch in Settings for easier global control.\n• Enhanced service lifecycle to fix UI sync and notification issues on Android 8 & 16.\n• Optimized internal state management for faster and more reliable connections.\n• Improved routing and IP handling.\n• Added multiple routing databases for enhanced traffic management.\n• Various improvements to the SocksTunBridge engine.",
-  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.4.0"
+  "changelog": "• Fixed a critical crash on Android 8 (API 26) related to OkHttp connection pool.\n• Added a new connection widget for the home screen.\n• Improved 'Tunnel Whole Device' logic to correctly override Split Tunneling settings.",
+  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.4.2"
 }
