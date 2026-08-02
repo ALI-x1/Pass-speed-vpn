@@ -2,6 +2,12 @@ package io.github.immaghzbad.aetherst
 
 import android.app.Application
 import android.content.Intent
+import io.github.immaghzbad.aetherst.core.ConnectionController
+import io.github.immaghzbad.aetherst.service.AetherWidgetProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -9,9 +15,20 @@ import kotlin.system.exitProcess
 
 class AetherSTApp : Application() {
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     override fun onCreate() {
         super.onCreate()
         setupCrashHandler()
+        observeStatusForWidgets()
+    }
+
+    private fun observeStatusForWidgets() {
+        applicationScope.launch {
+            ConnectionController.status.collect {
+                AetherWidgetProvider.updateAllWidgets(this@AetherSTApp)
+            }
+        }
     }
 
     private fun setupCrashHandler() {
