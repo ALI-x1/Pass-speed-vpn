@@ -323,6 +323,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                             pingState = pingState,
                             onToggleVpn = { handleVpnToggle() },
                             onUpdateProtocol = { proto -> viewModel.updateConfig(config.copy(protocol = proto)) },
+                            onOpenSettings = { selectedTab = 1 },
                             onRefreshIpInfo = { viewModel.refreshIpInfo() },
                             onRefreshPing = { viewModel.refreshPing() },
                             onShowToast = { msg, err -> viewModel.showToast(msg, err) },
