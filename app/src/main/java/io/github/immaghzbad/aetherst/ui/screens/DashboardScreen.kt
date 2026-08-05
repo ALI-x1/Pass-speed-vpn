@@ -133,19 +133,16 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
                         }
                         IconButton(
-                            onClick = onOpenSettings,
-                            modifier = Modifier.size((36 * scaleFactor).dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = Color.White,
-                                modifier = Modifier.size((24 * scaleFactor).dp)
-                            )
-                        }
-                    }
+    onClick = onOpenSettings,
+    modifier = Modifier.size((36 * scaleFactor).dp)
+) {
+    Icon(
+        imageVector = Icons.Default.Settings,
+        contentDescription = "Settings",
+        tint = Color.White,
+        modifier = Modifier.size((24 * scaleFactor).dp)
+    )
+}
                 }
 
                 IosStatusHeroCard(
