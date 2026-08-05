@@ -2,36 +2,31 @@ package io.github.immaghzbad.aetherst.ui.theme
 
 import android.app.Activity
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
-
-private val DarkColorScheme = darkColorScheme(
-    primary = ElegantPrimary,
-    onPrimary = ElegantOnPrimary,
-    primaryContainer = ElegantPrimaryContainer,
-    onPrimaryContainer = ElegantOnPrimaryContainer,
-    secondary = ElegantSecondary,
-    background = ElegantBackground,
-    onBackground = ElegantTextPrimary,
-    surface = ElegantSurface,
-    onSurface = ElegantTextPrimary,
-    surfaceVariant = ElegantSurfaceCard,
-    onSurfaceVariant = ElegantTextSecondary,
-    outline = ElegantOutline
-)
 
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
+    val context = LocalContext.current
+
+    // فقط یک‌بار: آخرین تم ذخیره‌شده رو از حافظه بخون
+    LaunchedEffect(Unit) {
+        ThemeManager.init(context)
+    }
+
+    val appTheme = ThemeManager.currentTheme
+    val colorScheme = appTheme.colorScheme
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -39,11 +34,15 @@ fun MyApplicationTheme(
             activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             val window = activity.window
             val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = !darkTheme
-            insetsController.isAppearanceLightNavigationBars = !darkTheme
+            insetsController.isAppearanceLightStatusBars = !appTheme.isDark
+            insetsController.isAppearanceLightNavigationBars = !appTheme.isDark
         }
     }
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Ltr,
+        LocalAppTheme provides appTheme
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,
