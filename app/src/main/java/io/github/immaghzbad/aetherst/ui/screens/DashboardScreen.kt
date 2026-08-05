@@ -56,6 +56,7 @@ fun DashboardScreen(
     onToggleVpn: () -> Unit,
    onUpdateProtocol: (AetherProtocol) -> Unit,
    onOpenSettings: () -> Unit = {},
+    onOpenThemes: () -> Unit = {},
     onRefreshIpInfo: () -> Unit = {},
     onRefreshPing: () -> Unit = {},
     onShowToast: (String, Boolean) -> Unit = { _, _ -> },
@@ -131,7 +132,19 @@ fun DashboardScreen(
                                 )
                             }
                             Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
-                        }
+                      }
+                        IconButton(
+    onClick = onOpenThemes,
+    modifier = Modifier.size((36 * scaleFactor).dp)
+) {
+    Icon(
+        imageVector = Icons.Default.Palette,
+        contentDescription = "Themes",
+        tint = Color.White,
+        modifier = Modifier.size((24 * scaleFactor).dp)
+    )
+}
+Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
                         IconButton(
     onClick = onOpenSettings,
     modifier = Modifier.size((36 * scaleFactor).dp)
