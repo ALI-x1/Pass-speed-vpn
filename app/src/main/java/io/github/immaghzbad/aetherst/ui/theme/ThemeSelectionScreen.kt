@@ -41,7 +41,10 @@ import androidx.compose.ui.unit.dp
  *   ThemeSelectionScreen()
  */
 @Composable
-fun ThemeSelectionScreen(modifier: Modifier = Modifier) {
+fun ThemeSelectionScreen(
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit = {}
+) {
     val context = LocalContext.current
     val current = ThemeManager.currentTheme
     val lightThemes = AppThemes.filter { !it.isDark }
@@ -53,6 +56,15 @@ fun ThemeSelectionScreen(modifier: Modifier = Modifier) {
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+        }
         Text(
             text = "انتخاب تم",
             style = MaterialTheme.typography.headlineSmall,
