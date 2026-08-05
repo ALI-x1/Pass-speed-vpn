@@ -19,8 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,9 +38,6 @@ import androidx.compose.ui.unit.dp
 /**
  * صفحه‌ی «انتخاب تم»، شبیه تلگرام: یک کارت بزرگ برای تم فعال،
  * بعد دو بخش «روشن» و «تیره» با کارت‌های کوچیکِ قابل لمس.
- *
- * فقط کافیه این Composable رو داخل تب/مسیر «تم» پروژه‌ت صدا بزنی:
- *   ThemeSelectionScreen()
  */
 @Composable
 fun ThemeSelectionScreen(
@@ -145,8 +144,6 @@ private fun ActiveThemeCard(theme: AppTheme) {
                 )
             }
         }
-        // پیش‌نمایش رنگ تم — اگه آیکون اختصاصی اپ (شیلد VPN) رو داری،
-        // به‌جای این Box خالی همون Composable آیکون رو اینجا بذار.
         Box(
             modifier = Modifier
                 .size(46.dp)
@@ -178,7 +175,6 @@ private fun ThemeGrid(
                         onClick = { onSelect(theme.id) }
                     )
                 }
-                // ردیف آخر که کامل نیست رو با فضای خالی پر می‌کنیم تا چیدمان به‌هم نریزه
                 repeat(3 - rowThemes.size) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
