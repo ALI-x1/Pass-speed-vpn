@@ -332,6 +332,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                         1 -> SettingsScreen(
                             config = config,
                             isBatteryOptimized = isBatteryOptimized,
+                            onBack = { selectedTab = 0 },
                             scrollToSection = scrollToZeroTrust,
                             onSectionScrolled = { viewModel.onZeroTrustScrolled() },
                             onUpdateConfig = { viewModel.updateConfig(it) },
