@@ -29,21 +29,13 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-
-      - name: Decode Keystore
-        env:
-          ENCODED_STRING: ${{ secrets.KEYSTORE_BASE64 }}
+        
+      - name: Create Dummy Debug Keystore
         run: |
-          mkdir -p app/src/main
-          echo $ENCODED_STRING | base64 --decode > app/src/main/release.jks
-
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      
       - name: Build Multi-APK with Gradle
-        env:
-          KEYSTORE_FILE: src/main/release.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
 
       - name: Organize & Rename APKs
         id: rename_apks
@@ -51,7 +43,7 @@ jobs:
           TAG_NAME=${GITHUB_REF#refs/tags/}
           RELEASE_DIR="${{ github.workspace }}/release-artifacts"
           mkdir -p "$RELEASE_DIR"
-          cd app/build/outputs/apk/release/
+          cd app/build/outputs/apk/debug/
           
           for apk in *.apk; do
             if [[ "$apk" == *"universal"* ]]; then
@@ -77,7 +69,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cleanup Sensitive Data
-        if: always()
-        run: rm -f app/src/main/release.jks
