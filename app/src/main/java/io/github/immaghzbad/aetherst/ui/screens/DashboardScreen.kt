@@ -54,7 +54,8 @@ fun DashboardScreen(
     ipInfo: IpInfo = IpInfo(),
     pingState: PingState = PingState(),
     onToggleVpn: () -> Unit,
-    onUpdateProtocol: (AetherProtocol) -> Unit,
+   onUpdateProtocol: (AetherProtocol) -> Unit,
+   onOpenSettings: () -> Unit = {},
     onRefreshIpInfo: () -> Unit = {},
     onRefreshPing: () -> Unit = {},
     onShowToast: (String, Boolean) -> Unit = { _, _ -> },
@@ -132,9 +133,11 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
                         }
                         IconButton(
-                            onClick = { },
+                            onClick = onOpenSettings,
                             modifier = Modifier.size((36 * scaleFactor).dp)
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Settings",
