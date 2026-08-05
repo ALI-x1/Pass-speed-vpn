@@ -57,6 +57,7 @@ private val IosInactiveSwitchTrack = Color(0xFF3A3A3C)
 fun SettingsScreen(
     config: AetherConfig,
     isBatteryOptimized: Boolean,
+    onBack: () -> Unit = {},
     scrollToSection: Boolean = false,
     onSectionScrolled: () -> Unit = {},
     onUpdateConfig: (AetherConfig) -> Unit,
@@ -115,22 +116,42 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy((18 * scaleFactor).dp)
         ) {
             item {
-                Column(modifier = Modifier.statusBarsPadding().padding(top = 12.dp)) {
-                    Text(
-                        text = "AetherST Settings",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontSize = (26 * scaleFactor).sp,
-                        lineHeight = (30 * scaleFactor).sp
-                    )
-                    Text(
-                        text = "Configure engine protocols, obfuscation & transport parameters",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = IosSecondaryLabel,
-                        fontSize = (12 * scaleFactor).sp,
-                        lineHeight = (16 * scaleFactor).sp
-                    )
+                Row(
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(top = 12.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size((36 * scaleFactor).dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size((22 * scaleFactor).dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "AetherST Settings",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = (26 * scaleFactor).sp,
+                            lineHeight = (30 * scaleFactor).sp
+                        )
+                        Text(
+                            text = "Configure engine protocols, obfuscation & transport parameters",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IosSecondaryLabel,
+                            fontSize = (12 * scaleFactor).sp,
+                            lineHeight = (16 * scaleFactor).sp
+                        )
+                    }
                 }
             }
 
