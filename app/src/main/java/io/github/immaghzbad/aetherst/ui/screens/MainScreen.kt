@@ -1,5 +1,5 @@
 package io.github.immaghzbad.aetherst.ui.screens
-
+import io.github.immaghzbad.aetherst.ui.theme.ThemeSelectionScreen
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -324,6 +324,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                             onToggleVpn = { handleVpnToggle() },
                             onUpdateProtocol = { proto -> viewModel.updateConfig(config.copy(protocol = proto)) },
                             onOpenSettings = { selectedTab = 1 },
+                           onOpenThemes = { selectedTab = 4 },
                             onRefreshIpInfo = { viewModel.refreshIpInfo() },
                             onRefreshPing = { viewModel.refreshPing() },
                             onShowToast = { msg, err -> viewModel.showToast(msg, err) },
@@ -361,6 +362,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                             onShowToast = { msg, err -> viewModel.showToast(msg, err) },
                             bottomContentPadding = BarContentHeight + navBarHeight
                         )
+                        4 -> ThemeSelectionScreen(onBack = { selectedTab = 0 })
                         2 -> LogsScreen(viewModel = viewModel, onShowToast = { msg, err -> viewModel.showToast(msg, err) }, bottomContentPadding = BarContentHeight + navBarHeight)
                         3 -> AboutUsScreen(bottomContentPadding = BarContentHeight + navBarHeight)
                         99 -> SplitTunnelingScreen(
