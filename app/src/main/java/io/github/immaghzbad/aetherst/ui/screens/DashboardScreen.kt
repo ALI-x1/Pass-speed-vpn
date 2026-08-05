@@ -116,7 +116,7 @@ fun DashboardScreen(
                             lineHeight = (16 * scaleFactor).sp
                         )
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                         if (config.connectionMode == ConnectionMode.PROXY_ONLY && connectionStatus == ConnectionStatus.RUNNING) {
                             IconButton(
                                 onClick = { showProxyOverlay = true },
@@ -131,17 +131,15 @@ fun DashboardScreen(
                             }
                             Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
                         }
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = IosGroupBg
+                        IconButton(
+                            onClick = { },
+                            modifier = Modifier.size((36 * scaleFactor).dp)
                         ) {
-                            Text(
-                                text = "v1.4.2",
-                                modifier = Modifier.padding(horizontal = (12 * scaleFactor).dp, vertical = (6 * scaleFactor).dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = IosActiveBlue,
-                                fontSize = (10 * scaleFactor).sp
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = Color.White,
+                                modifier = Modifier.size((24 * scaleFactor).dp)
                             )
                         }
                     }
