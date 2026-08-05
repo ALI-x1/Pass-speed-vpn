@@ -326,7 +326,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                             onRefreshIpInfo = { viewModel.refreshIpInfo() },
                             onRefreshPing = { viewModel.refreshPing() },
                             onShowToast = { msg, err -> viewModel.showToast(msg, err) },
-                            bottomContentPadding = BarContentHeight + navBarHeight
+                            bottomContentPadding = 0.dp
                         )
                         1 -> SettingsScreen(
                             config = config,
@@ -392,9 +392,10 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                 }
             }
         }
-        if (!showSplitTunneling && !showRoutingRules) {
-            CurvedNavBar(selectedTab = selectedTab, navBarHeight = navBarHeight, onTabSelected = { selectedTab = it }, modifier = Modifier.align(Alignment.BottomCenter))
-        }
+        if (false) {
+    CurvedNavBar(selectedTab = selectedTab, navBarHeight = navBarHeight, onTabSelected = { selectedTab = it }, modifier = Modifier.align(Alignment.BottomCenter))
+}
+
 
         if (isWaitingForLoginCode) {
             ZeroTrustLoginDialog(
