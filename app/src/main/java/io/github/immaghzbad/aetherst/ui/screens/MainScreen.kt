@@ -1,5 +1,5 @@
 package io.github.immaghzbad.aetherst.ui.screens
-import io.github.immaghzbad.aetherst.ui.theme.ThemeSelectionScreen
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -18,65 +18,33 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
@@ -84,23 +52,26 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import io.github.immaghzbad.aetherst.model.OnboardingStep
 import io.github.immaghzbad.aetherst.ui.AetherViewModel
 import io.github.immaghzbad.aetherst.ui.OnboardingViewModel
 import io.github.immaghzbad.aetherst.ui.components.IosToast
-import kotlin.math.roundToInt
+import io.github.immaghzbad.aetherst.ui.theme.ThemeSelectionScreen
 
-private val IosNavBackground = Color(0xFF1C1C1E)
+// ---- رنگ‌های پیش‌فرض Warden (بر اساس تم فایل HTML شما) ----
+private val WardenBg = Color(0xFFF0F4FF)
+private val WardenBgSub = Color(0xFFE8EEFF)
+private val WardenCard = Color(0xFFFFFFFF)
+private val WardenCardBorder = Color(0xFFDDEAFF)
+private val WardenAccent = Color(0xFF2B82D4)
+private val WardenAccentFg = Color(0xFFFFFFFF)
+private val WardenText = Color(0xFF0D1B2A)
+private val WardenTextMuted = Color(0xFF7A9CC2)
+private val WardenSuccess = Color(0xFF22C55E)
+private val WardenInputBg = Color(0xFFF5F8FF)
+private val WardenInputBorder = Color(0xFFC8DCFF)
 private val IosNavActiveBlue = Color(0xFF007AFF)
 private val IosNavInactiveGrey = Color(0xFF8E8E93)
-private val BarContentHeight = 80.dp
-private val ButtonSize = 56.dp
-private val ButtonCenterY = 22.dp
-private val CircleGap = 6.dp
-private val BarTopY = 20.dp
-private val ItemBottomPadding = 10.dp
 
 private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
     is ComponentActivity -> this
@@ -159,74 +130,76 @@ fun MainScreen(viewModel: AetherViewModel) {
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val screenWidth = this.maxWidth
-        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val screenWidth = this.maxWidth
+            val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
 
-        if (!isOnboardingComplete) {
-            val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-                val intent = VpnService.prepare(context)
-                if (intent == null) onboardingViewModel.moveToNextStep()
-            }
-            val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-                if (isGranted) onboardingViewModel.moveToNextStep() else onboardingViewModel.showNotificationError()
-            }
-
-            OnboardingScreen(
-                state = onboardingState,
-                onGetStarted = { onboardingViewModel.moveToNextStep() },
-                onRetryRegistration = { onboardingViewModel.startProtocolTests() },
-                onCancelRegistration = { onboardingViewModel.cancelTests() },
-                onUpdateScanMode = { onboardingViewModel.updateScanMode(it) },
-                onRequestVpnPermission = {
+            if (!isOnboardingComplete) {
+                val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                     val intent = VpnService.prepare(context)
-                    if (intent != null) vpnLauncher.launch(intent) else onboardingViewModel.moveToNextStep()
-                },
-                onRequestNotificationPermission = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        onboardingViewModel.moveToNextStep()
-                    }
-                },
-                onRequestBatteryOptimization = {
-                    if (context.isIgnoringBatteryOptimizations()) {
-                        onboardingViewModel.moveToNextStep()
-                    } else {
-                        runCatching {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = "package:${context.packageName}".toUri()
-                            }
-                            context.startActivity(intent)
-                        }.onFailure {
-                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                            context.startActivity(intent)
+                    if (intent == null) onboardingViewModel.moveToNextStep()
+                }
+                val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+                    if (isGranted) onboardingViewModel.moveToNextStep() else onboardingViewModel.showNotificationError()
+                }
+
+                OnboardingScreen(
+                    state = onboardingState,
+                    onGetStarted = { onboardingViewModel.moveToNextStep() },
+                    onRetryRegistration = { onboardingViewModel.startProtocolTests() },
+                    onCancelRegistration = { onboardingViewModel.cancelTests() },
+                    onUpdateScanMode = { onboardingViewModel.updateScanMode(it) },
+                    onRequestVpnPermission = {
+                        val intent = VpnService.prepare(context)
+                        if (intent != null) vpnLauncher.launch(intent) else onboardingViewModel.moveToNextStep()
+                    },
+                    onRequestNotificationPermission = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            onboardingViewModel.moveToNextStep()
                         }
-                    }
-                },
-                onFinish = onboardingViewModel::moveToNextStep
-            )
-        } else if (crashLog != null) {
-            CrashReportScreen(
-                crashLog = crashLog!!,
-                onRestart = { viewModel.clearCrashLog() },
-                onShowToast = { viewModel.showToast(it) }
-            )
-        } else if (updateInfo != null) {
-            UpdateScreen(
-                info = updateInfo!!,
-                onDismiss = { viewModel.dismissUpdate() },
+                    },
+                    onRequestBatteryOptimization = {
+                        if (context.isIgnoringBatteryOptimizations()) {
+                            onboardingViewModel.moveToNextStep()
+                        } else {
+                            runCatching {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = "package:${context.packageName}".toUri()
+                                }
+                                context.startActivity(intent)
+                            }.onFailure {
+                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                context.startActivity(intent)
+                            }
+                        }
+                    },
+                    onFinish = onboardingViewModel::moveToNextStep
+                )
+            } else if (crashLog != null) {
+                CrashReportScreen(
+                    crashLog = crashLog!!,
+                    onRestart = { viewModel.clearCrashLog() },
+                    onShowToast = { viewModel.showToast(it) }
+                )
+            } else if (updateInfo != null) {
+                UpdateScreen(
+                    info = updateInfo!!,
+                    onDismiss = { viewModel.dismissUpdate() },
+                    scaleFactor = scaleFactor
+                )
+            } else {
+                DashboardContent(viewModel)
+            }
+
+            IosToast(
+                message = toastState?.message,
+                isError = toastState?.isError ?: false,
                 scaleFactor = scaleFactor
             )
-        } else {
-            DashboardContent(viewModel)
         }
-
-        IosToast(
-            message = toastState?.message,
-            isError = toastState?.isError ?: false,
-            scaleFactor = scaleFactor
-        )
     }
 }
 
@@ -251,6 +224,8 @@ private fun DashboardContent(viewModel: AetherViewModel) {
     val isWaitingForLoginCode by viewModel.isWaitingForLoginCode.collectAsStateWithLifecycle()
     val scrollToZeroTrust by viewModel.scrollToZeroTrust.collectAsStateWithLifecycle()
     var showRoutingRules by remember { mutableStateOf(false) }
+
+    val isConnected = connectionStatus.toString().contains("Connected", ignoreCase = true) 
 
     LaunchedEffect(scrollToZeroTrust) {
         if (scrollToZeroTrust) {
@@ -289,117 +264,181 @@ private fun DashboardContent(viewModel: AetherViewModel) {
         }
     }
 
-    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val saveableStateHolder = rememberSaveableStateHolder()
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(WardenBg)) {
         val screenWidth = this.maxWidth
         val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            val targetScreen = if (showRoutingRules) 100 else if (showSplitTunneling) 99 else selectedTab
-            AnimatedContent(
-                targetState = targetScreen,
-                transitionSpec = {
-                    val duration = 350
-                    if (targetState > initialState) {
-                        (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it } + fadeIn(animationSpec = tween(duration)))
-                            .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it / 2 } + fadeOut(animationSpec = tween(duration)))
-                    } else {
-                        (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it } + fadeIn(animationSpec = tween(duration)))
-                            .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it / 2 } + fadeOut(animationSpec = tween(duration)))
+        Column(modifier = Modifier.fillMaxSize()) {
+            
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(WardenCard)
+                    .border(1.dp, WardenCardBorder)
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .statusBarsPadding(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(WardenAccent),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Default.Lock, contentDescription = "Logo", tint = WardenAccentFg, modifier = Modifier.size(15.dp))
                     }
-                },
-                label = "screen_transition"
-            ) { tab ->
-                saveableStateHolder.SaveableStateProvider(tab) {
-                    when (tab) {
-                        0 -> DashboardScreen(
-                            config = config,
-                            connectionStatus = connectionStatus,
-                            elapsedSeconds = elapsedSeconds,
-                            sessionTraffic = sessionTraffic,
-                            ipInfo = ipInfo,
-                            pingState = pingState,
-                            onToggleVpn = { handleVpnToggle() },
-                            onUpdateProtocol = { proto -> viewModel.updateConfig(config.copy(protocol = proto)) },
-                            onOpenSettings = { selectedTab = 1 },
-                           onOpenThemes = { selectedTab = 4 },
-                            onRefreshIpInfo = { viewModel.refreshIpInfo() },
-                            onRefreshPing = { viewModel.refreshPing() },
-                            onShowToast = { msg, err -> viewModel.showToast(msg, err) },
-                            bottomContentPadding = 0.dp
-                        )
-                        1 -> SettingsScreen(
-                            config = config,
-                            isBatteryOptimized = isBatteryOptimized,
-                            onBack = { selectedTab = 0 },
-                            scrollToSection = scrollToZeroTrust,
-                            onSectionScrolled = { viewModel.onZeroTrustScrolled() },
-                            onUpdateConfig = { viewModel.updateConfig(it) },
-                            onUpdateTunnelEngine = { viewModel.updateTunnelEngine(it) },
-                            onApplyPreset = { preset ->
-                                viewModel.applyPreset(preset)
-                            },
-                            onOpenSplitTunneling = { showSplitTunneling = true },
-                            onOpenRoutingRules = { showRoutingRules = true },
-                            onResetAll = { viewModel.resetAllSettings() },
-                            onExportBackup = { viewModel.exportFullBackup(context) },
-                            onImportBackup = { viewModel.importFullBackup(it, context) },
-                            onOptimizeMtu = { viewModel.optimizeMtu() },
-                            isOptimizingMtu = isOptimizingMtu,
-                            onRequestBatteryOptimization = {
-                                runCatching {
-                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                        data = "package:${context.packageName}".toUri()
+                    Text(text = "Warden", color = WardenText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isConnected) WardenSuccess.copy(alpha = 0.1f) else WardenInputBg)
+                        .border(1.dp, if (isConnected) WardenSuccess.copy(alpha = 0.3f) else WardenInputBorder, CircleShape)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(if (isConnected) WardenSuccess else WardenTextMuted)
+                    )
+                    Text(
+                        text = if (isConnected) "متصل" else "قطع",
+                        color = if (isConnected) WardenSuccess else WardenTextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Box(modifier = Modifier.weight(1f).background(WardenBgSub)) {
+                val targetScreen = if (showRoutingRules) 100 else if (showSplitTunneling) 99 else selectedTab
+                AnimatedContent(
+                    targetState = targetScreen,
+                    transitionSpec = {
+                        val duration = 350
+                        if (targetState > initialState) {
+                            (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it } + fadeIn(animationSpec = tween(duration)))
+                                .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it / 2 } + fadeOut(animationSpec = tween(duration)))
+                        } else {
+                            (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it } + fadeIn(animationSpec = tween(duration)))
+                                .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it / 2 } + fadeOut(animationSpec = tween(duration)))
+                        }
+                    },
+                    label = "screen_transition"
+                ) { tab ->
+                    saveableStateHolder.SaveableStateProvider(tab) {
+                        when (tab) {
+                            0 -> DashboardScreen(
+                                config = config,
+                                connectionStatus = connectionStatus,
+                                elapsedSeconds = elapsedSeconds,
+                                sessionTraffic = sessionTraffic,
+                                ipInfo = ipInfo,
+                                pingState = pingState,
+                                onToggleVpn = { handleVpnToggle() },
+                                onUpdateProtocol = { proto -> viewModel.updateConfig(config.copy(protocol = proto)) },
+                                onOpenSettings = { selectedTab = 1 },
+                                onOpenThemes = { selectedTab = 4 },
+                                onRefreshIpInfo = { viewModel.refreshIpInfo() },
+                                onRefreshPing = { viewModel.refreshPing() },
+                                onShowToast = { msg, err -> viewModel.showToast(msg, err) },
+                                bottomContentPadding = 0.dp
+                            )
+                            1 -> SettingsScreen(
+                                config = config,
+                                isBatteryOptimized = isBatteryOptimized,
+                                onBack = { selectedTab = 0 },
+                                scrollToSection = scrollToZeroTrust,
+                                onSectionScrolled = { viewModel.onZeroTrustScrolled() },
+                                onUpdateConfig = { viewModel.updateConfig(it) },
+                                onUpdateTunnelEngine = { viewModel.updateTunnelEngine(it) },
+                                onApplyPreset = { preset -> viewModel.applyPreset(preset) },
+                                onOpenSplitTunneling = { showSplitTunneling = true },
+                                onOpenRoutingRules = { showRoutingRules = true },
+                                onResetAll = { viewModel.resetAllSettings() },
+                                onExportBackup = { viewModel.exportFullBackup(context) },
+                                onImportBackup = { viewModel.importFullBackup(it, context) },
+                                onOptimizeMtu = { viewModel.optimizeMtu() },
+                                isOptimizingMtu = isOptimizingMtu,
+                                onRequestBatteryOptimization = {
+                                    runCatching {
+                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = "package:${context.packageName}".toUri()
+                                        }
+                                        context.startActivity(intent)
+                                    }.onFailure {
+                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                        context.startActivity(intent)
                                     }
-                                    context.startActivity(intent)
-                                }.onFailure {
-                                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                    context.startActivity(intent)
-                                }
-                            },
-                            onShowToast = { msg, err -> viewModel.showToast(msg, err) },
-                            bottomContentPadding = BarContentHeight + navBarHeight
-                        )
-                        4 -> ThemeSelectionScreen(onBack = { selectedTab = 0 })
-                        2 -> LogsScreen(viewModel = viewModel, onShowToast = { msg, err -> viewModel.showToast(msg, err) }, bottomContentPadding = BarContentHeight + navBarHeight)
-                        3 -> AboutUsScreen(bottomContentPadding = BarContentHeight + navBarHeight)
-                        99 -> SplitTunnelingScreen(
-                            apps = installedApps,
-                            excludedPackages = config.excludedPackages,
-                            blockedPackages = config.blockedPackages,
-                            onUpdateMode = { pkg, mode -> viewModel.updateAppSplitTunnelingMode(pkg, mode) },
-                            onBack = { showSplitTunneling = false },
-                            scaleFactor = scaleFactor
-                        )
-                        100 -> RoutingRulesScreen(
-                            rules = config.routingRules,
-                            importConflictRules = importConflictRules,
-                            importErrorMessage = importErrorMessage,
-                            onAddRule = { pattern, mode -> viewModel.addRoutingRule(pattern, mode) },
-                            onRemoveRule = { pattern -> viewModel.removeRoutingRule(pattern) },
-                            onUpdateMode = { pattern, mode -> viewModel.updateRoutingRuleMode(pattern, mode) },
-                            onClearAllRules = { viewModel.clearAllRoutingRules() },
-                            onCleanPattern = { viewModel.cleanRoutingPattern(it) },
-                            onValidatePattern = { viewModel.isValidRoutingPattern(it) },
-                            onExportRules = { viewModel.exportRoutingRules(context) },
-                            onImportRules = { viewModel.importRoutingRules(it, context) },
-                            onResolveConflict = { rules, replace -> viewModel.resolveConflict(rules, replace) },
-                            onCancelImport = { viewModel.cancelImport() },
-                            onClearImportError = { viewModel.clearImportError() },
-                            onShowToast = { msg, err -> viewModel.showToast(msg, err) },
-                            onBack = { showRoutingRules = false },
-                            scaleFactor = scaleFactor
-                        )
+                                },
+                                onShowToast = { msg, err -> viewModel.showToast(msg, err) },
+                                bottomContentPadding = 0.dp
+                            )
+                            4 -> ThemeSelectionScreen(onBack = { selectedTab = 0 })
+                            2 -> LogsScreen(viewModel = viewModel, onShowToast = { msg, err -> viewModel.showToast(msg, err) }, bottomContentPadding = 0.dp)
+                            3 -> AboutUsScreen(bottomContentPadding = 0.dp)
+                            99 -> SplitTunnelingScreen(
+                                apps = installedApps,
+                                excludedPackages = config.excludedPackages,
+                                blockedPackages = config.blockedPackages,
+                                onUpdateMode = { pkg, mode -> viewModel.updateAppSplitTunnelingMode(pkg, mode) },
+                                onBack = { showSplitTunneling = false },
+                                scaleFactor = scaleFactor
+                            )
+                            100 -> RoutingRulesScreen(
+                                rules = config.routingRules,
+                                importConflictRules = importConflictRules,
+                                importErrorMessage = importErrorMessage,
+                                onAddRule = { pattern, mode -> viewModel.addRoutingRule(pattern, mode) },
+                                onRemoveRule = { pattern -> viewModel.removeRoutingRule(pattern) },
+                                onUpdateMode = { pattern, mode -> viewModel.updateRoutingRuleMode(pattern, mode) },
+                                onClearAllRules = { viewModel.clearAllRoutingRules() },
+                                onCleanPattern = { viewModel.cleanRoutingPattern(it) },
+                                onValidatePattern = { viewModel.isValidRoutingPattern(it) },
+                                onExportRules = { viewModel.exportRoutingRules(context) },
+                                onImportRules = { viewModel.importRoutingRules(it, context) },
+                                onResolveConflict = { rules, replace -> viewModel.resolveConflict(rules, replace) },
+                                onCancelImport = { viewModel.cancelImport() },
+                                onClearImportError = { viewModel.clearImportError() },
+                                onShowToast = { msg, err -> viewModel.showToast(msg, err) },
+                                onBack = { showRoutingRules = false },
+                                scaleFactor = scaleFactor
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (false) {
-    CurvedNavBar(selectedTab = selectedTab, navBarHeight = navBarHeight, onTabSelected = { selectedTab = it }, modifier = Modifier.align(Alignment.BottomCenter))
-}
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(WardenCard)
+                    .border(1.dp, WardenCardBorder)
+                    .navigationBarsPadding()
+            ) {
+                WardenBottomNavItem(
+                    title = "داشبورد",
+                    isSelected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    modifier = Modifier.weight(1f)
+                )
+                WardenBottomNavItem(
+                    title = "تنظیمات",
+                    isSelected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
 
         if (isWaitingForLoginCode) {
             ZeroTrustLoginDialog(
@@ -408,6 +447,39 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                 scaleFactor = scaleFactor
             )
         }
+    }
+}
+
+@Composable
+private fun WardenBottomNavItem(
+    title: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(if (isSelected) WardenAccent else WardenTextMuted.copy(alpha = 0.5f))
+        )
+        Text(
+            text = title,
+            color = if (isSelected) WardenAccent else WardenTextMuted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -527,201 +599,6 @@ fun ZeroTrustLoginDialog(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text("Verify", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CurvedNavBar(
-    selectedTab: Int,
-    navBarHeight: androidx.compose.ui.unit.Dp,
-    onTabSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val screenWidth = this.maxWidth
-        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
-        
-        val scaledBarHeight = (BarContentHeight.value * scaleFactor).dp
-        val scaledButtonSize = (ButtonSize.value * scaleFactor).dp
-        val scaledButtonCenterY = (ButtonCenterY.value * scaleFactor).dp
-        val scaledCircleGap = (CircleGap.value * scaleFactor).dp
-        val scaledBarTopY = (BarTopY.value * scaleFactor).dp
-        val scaledItemBottomPadding = (ItemBottomPadding.value * scaleFactor).dp
-
-        val tabs = listOf(
-            "Dashboard" to Icons.Default.Dashboard,
-            "Settings" to Icons.Default.Settings,
-            "Logs" to Icons.Default.Code,
-            "About" to Icons.Default.Info
-        )
-        val tabCount = tabs.size
-        var barWidthPx by remember { mutableIntStateOf(0) }
-        
-        val indicatorOffset by animateFloatAsState(
-            targetValue = selectedTab.toFloat(),
-            animationSpec = spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow),
-            label = "indicatorOffset"
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(scaledBarHeight + navBarHeight)
-                .onSizeChanged { barWidthPx = it.width }
-        ) {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .shadow(elevation = (15 * scaleFactor).dp, spotColor = Color.Black.copy(alpha = 0.5f))
-            ) {
-                val tabWidth = size.width / tabCount
-                val centerX = (indicatorOffset * tabWidth) + (tabWidth / 2)
-                val barTop = scaledBarTopY.toPx()
-                val notchBottom = scaledButtonCenterY.toPx() + (scaledButtonSize.toPx() / 2f) + scaledCircleGap.toPx()
-                val shoulderWidth = (45.dp.toPx() * scaleFactor)
-                
-                val barShape = Path().apply {
-                    moveTo(0f, barTop)
-                    lineTo(centerX - shoulderWidth, barTop)
-                    
-                    cubicTo(
-                        centerX - (40.dp.toPx() * scaleFactor), barTop,
-                        centerX - (38.dp.toPx() * scaleFactor), barTop + (2.dp.toPx() * scaleFactor),
-                        centerX - (35.dp.toPx() * scaleFactor), barTop + (10.dp.toPx() * scaleFactor)
-                    )
-                    cubicTo(
-                        centerX - (28.dp.toPx() * scaleFactor), barTop + (26.dp.toPx() * scaleFactor),
-                        centerX - (20.dp.toPx() * scaleFactor), notchBottom,
-                        centerX, notchBottom
-                    )
-                    cubicTo(
-                        centerX + (20.dp.toPx() * scaleFactor), notchBottom,
-                        centerX + (28.dp.toPx() * scaleFactor), barTop + (26.dp.toPx() * scaleFactor),
-                        centerX + (35.dp.toPx() * scaleFactor), barTop + (10.dp.toPx() * scaleFactor)
-                    )
-                    cubicTo(
-                        centerX + (38.dp.toPx() * scaleFactor), barTop + (2.dp.toPx() * scaleFactor),
-                        centerX + (40.dp.toPx() * scaleFactor), barTop,
-                        centerX + shoulderWidth, barTop
-                    )
-                    
-                    lineTo(size.width, barTop)
-                    lineTo(size.width, size.height)
-                    lineTo(0f, size.height)
-                    close()
-                }
-                drawPath(
-                    path = barShape,
-                    color = IosNavBackground.copy(alpha = 0.94f),
-                    style = Fill
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .size(scaledButtonSize + (scaledCircleGap * 2))
-                    .offset {
-                        val tabWidth = barWidthPx.toFloat() / tabCount
-                        val outerSize = scaledButtonSize.toPx() + scaledCircleGap.toPx() * 2f
-                        IntOffset(
-                            (indicatorOffset * tabWidth + (tabWidth / 2) - (outerSize / 2f)).roundToInt(),
-                            (scaledButtonCenterY.toPx() - outerSize / 2f).roundToInt()
-                        )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                val iconScale by animateFloatAsState(
-                    targetValue = 1f,
-                    animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow),
-                    label = "iconScale"
-                )
-                
-                Box(
-                    modifier = Modifier
-                        .size(scaledButtonSize)
-                        .shadow(
-                            elevation = (16 * scaleFactor).dp,
-                            shape = CircleShape,
-                            spotColor = IosNavActiveBlue.copy(alpha = 0.8f)
-                        )
-                        .background(IosNavActiveBlue, CircleShape)
-                        .border(
-                            width = (1.5 * scaleFactor).dp,
-                            color = Color.White.copy(alpha = 0.35f),
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = tabs[selectedTab].second,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size((28 * scaleFactor).dp)
-                            .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(scaledBarHeight)
-                    .align(Alignment.TopStart),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                tabs.forEachIndexed { index, (label, icon) ->
-                    val isSelected = selectedTab == index
-                    
-                    val contentAlpha by animateFloatAsState(
-                        targetValue = if (isSelected) 1f else 0.6f,
-                        label = "contentAlpha"
-                    )
-                    
-                    val textOffset by animateFloatAsState(
-                        targetValue = if (isSelected) 0f else 10f,
-                        animationSpec = spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow),
-                        label = "textOffset"
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { onTabSelected(index) }
-                            .padding(bottom = scaledItemBottomPadding),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Bottom,
-                            modifier = Modifier.graphicsLayer(alpha = contentAlpha)
-                        ) {
-                            if (!isSelected) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = label,
-                                    tint = IosNavInactiveGrey,
-                                    modifier = Modifier.size((24 * scaleFactor).dp)
-                                )
-                                Spacer(modifier = Modifier.height((6 * scaleFactor).dp))
-                            }
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = (10 * scaleFactor).sp,
-                                color = if (isSelected) IosNavActiveBlue else IosNavInactiveGrey,
-                                modifier = Modifier.graphicsLayer(translationY = textOffset)
-                            )
-                        }
                     }
                 }
             }
