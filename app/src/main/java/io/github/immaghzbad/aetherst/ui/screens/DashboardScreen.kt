@@ -4,11 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +26,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,15 +34,18 @@ import io.github.immaghzbad.aetherst.data.IpInfo
 import io.github.immaghzbad.aetherst.data.PingState
 import io.github.immaghzbad.aetherst.model.*
 import kotlinx.coroutines.launch
-import java.util.Locale
 
-private val IosCardBg = Color(0xFF1C1C1E)
-private val IosGroupBg = Color(0xFF2C2C2E)
-private val IosSecondaryLabel = Color(0xFF8E8E93)
-private val IosActiveGreen = Color(0xFF34C759)
-private val IosActiveBlue = Color(0xFF007AFF)
-private val IosScanningAmber = Color(0xFFFF9500)
-private val IosErrorRed = Color(0xFFFF3B30)
+// ---- رنگ‌های اختصاصی Warden ----
+private val WardenBgSub = Color(0xFFE8EEFF)
+private val WardenCard = Color(0xFFFFFFFF)
+private val WardenCardBorder = Color(0xFFDDEAFF)
+private val WardenAccent = Color(0xFF2B82D4)
+private val WardenAccentSub = Color(0xFFE5F0FA)
+private val WardenText = Color(0xFF0D1B2A)
+private val WardenTextMuted = Color(0xFF7A9CC2)
+private val WardenSuccess = Color(0xFF22C55E)
+private val WardenWarning = Color(0xFFF59E0B)
+private val WardenError = Color(0xFFEF4444)
 
 @Composable
 fun DashboardScreen(
@@ -64,6 +66,7 @@ fun DashboardScreen(
 ) {
     var showProxyOverlay by remember { mutableStateOf(true) }
 
+    // بررسی وضعیت اتصال برای نمایش پراکسی[span_2](start_span)[span_2](end_span)
     LaunchedEffect(connectionStatus) {
         if (connectionStatus != ConnectionStatus.RUNNING) {
             showProxyOverlay = true
@@ -73,7 +76,7 @@ fun DashboardScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(WardenBgSub) // تغییر رنگ پس‌زمینه به تم Warden
     ) {
         val screenWidth = this.maxWidth
         val screenHeight = this.maxHeight
@@ -93,9 +96,12 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
-                modifier = Modifier.statusBarsPadding().padding(top = 12.dp),
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(top = 12.dp),
                 verticalArrangement = Arrangement.spacedBy((14 * scaleFactor).dp)
             ) {
+                // هدر بالای داشبورد
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -106,14 +112,14 @@ fun DashboardScreen(
                             text = "AetherST Tunnel",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = WardenText, // تغییر رنگ متن
                             fontSize = (26 * scaleFactor).sp,
                             lineHeight = (30 * scaleFactor).sp
                         )
                         Text(
                             text = if (config.connectionMode == ConnectionMode.TUNNEL) "Secure & Private Tunneling" else "High-Performance Local Proxy",
                             style = MaterialTheme.typography.bodySmall,
-                            color = IosSecondaryLabel,
+                            color = WardenTextMuted, // تغییر رنگ متن ثانویه
                             fontSize = (12 * scaleFactor).sp,
                             lineHeight = (16 * scaleFactor).sp
                         )
@@ -127,7 +133,7 @@ fun DashboardScreen(
                                 Icon(
                                     imageVector = Icons.Default.Info,
                                     contentDescription = "Proxy Info",
-                                    tint = IosActiveBlue,
+                                    tint = WardenAccent,
                                     modifier = Modifier.size((22 * scaleFactor).dp)
                                 )
                             }
@@ -140,26 +146,15 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.Palette,
                                 contentDescription = "Themes",
-                                tint = Color.White,
-                                modifier = Modifier.size((24 * scaleFactor).dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
-                        IconButton(
-                            onClick = onOpenSettings,
-                            modifier = Modifier.size((36 * scaleFactor).dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = Color.White,
+                                tint = WardenTextMuted,
                                 modifier = Modifier.size((24 * scaleFactor).dp)
                             )
                         }
                     }
                 }
 
-                IosStatusHeroCard(
+                // کارت وضعیت اصلی
+                WardenStatusHeroCard(
                     connectionStatus = connectionStatus,
                     elapsedSeconds = elapsedSeconds,
                     sessionTraffic = sessionTraffic,
@@ -173,23 +168,24 @@ fun DashboardScreen(
                     scaleFactor = scaleFactor
                 )
 
+                // خطای اتصال[span_3](start_span)[span_3](end_span)
                 if (!isVeryCompactHeight && connectionStatus == ConnectionStatus.ERROR) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = IosErrorRed.copy(alpha = 0.1f))
+                        colors = CardDefaults.cardColors(containerColor = WardenError.copy(alpha = 0.1f))
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Refresh, null, tint = IosErrorRed, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Refresh, null, tint = WardenError, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "Connection failed. Please try reconnecting.",
-                                color = IosErrorRed,
+                                color = WardenError,
                                 fontSize = (11 * scaleFactor).sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -198,6 +194,7 @@ fun DashboardScreen(
                 }
             }
 
+            // بخش دکمه اتصال مرکزی[span_4](start_span)[span_4](end_span)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -208,20 +205,21 @@ fun DashboardScreen(
                 val minDim = if (screenWidth < screenHeight) screenWidth else screenHeight
                 val buttonSize = (minDim * 0.35f).coerceIn(100.dp, 160.dp)
                 
-                IosPowerButton(
+                WardenPowerButton(
                     connectionStatus = connectionStatus,
                     onToggle = onToggleVpn,
                     size = buttonSize
                 )
             }
 
+            // انتخاب پروتکل[span_5](start_span)[span_5](end_span)
             if (!isVeryCompactHeight) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 4.dp)
                 ) {
-                    IosProtocolSegmentedControl(
+                    WardenProtocolSegmentedControl(
                         selectedProtocol = config.protocol,
                         onProtocolSelected = onUpdateProtocol,
                         enabled = connectionStatus == ConnectionStatus.STOPPED || connectionStatus == ConnectionStatus.ERROR,
@@ -231,6 +229,7 @@ fun DashboardScreen(
             }
         }
 
+        // انیمیشن و لاجیک نمایش پراکسی به صورت دست‌نخورده[span_6](start_span)[span_6](end_span)
         val offsetY = remember { Animatable(0f) }
         val scope = rememberCoroutineScope()
 
@@ -282,6 +281,10 @@ fun DashboardScreen(
     }
 }
 
+// ========================================================
+// کامپوننت‌های بازنویسی شده بر اساس ظاهر Warden
+// ========================================================
+
 @Composable
 fun ProxyOverlayPill(
     host: String,
@@ -299,10 +302,10 @@ fun ProxyOverlayPill(
         modifier = Modifier
             .widthIn(max = 400.dp)
             .padding(horizontal = 8.dp)
-            .shadow(24.dp, RoundedCornerShape(20.dp), spotColor = IosActiveBlue.copy(alpha = 0.4f)),
+            .shadow(16.dp, RoundedCornerShape(20.dp), spotColor = WardenAccent.copy(alpha = 0.2f)),
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF1C1C1E).copy(alpha = 0.95f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+        color = WardenCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, WardenCardBorder)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -313,10 +316,10 @@ fun ProxyOverlayPill(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(IosActiveBlue.copy(alpha = 0.15f)),
+                    .background(WardenAccentSub),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Dns, null, tint = IosActiveBlue, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Dns, null, tint = WardenAccent, modifier = Modifier.size(20.dp))
             }
             
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -340,13 +343,13 @@ fun ProxyOverlayPill(
                 )
             }
 
-            VerticalDivider(modifier = Modifier.height(36.dp), thickness = 1.dp, color = Color.White.copy(alpha = 0.1f))
+            VerticalDivider(modifier = Modifier.height(36.dp), thickness = 1.dp, color = WardenCardBorder)
 
             IconButton(
                 onClick = onHide,
                 modifier = Modifier.size(32.dp)
             ) {
-                Icon(Icons.Default.Close, null, tint = IosSecondaryLabel, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Close, null, tint = WardenTextMuted, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -372,7 +375,7 @@ private fun ProxyCopyRow(
             Text(
                 text = "$label:",
                 style = MaterialTheme.typography.labelSmall,
-                color = IosActiveBlue,
+                color = WardenAccent,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = (9 * scaleFactor).sp
             )
@@ -380,7 +383,7 @@ private fun ProxyCopyRow(
             Text(
                 text = address,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White,
+                color = WardenText,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = (12 * scaleFactor).sp,
                 maxLines = 1
@@ -389,7 +392,7 @@ private fun ProxyCopyRow(
         Icon(
             imageVector = Icons.Default.ContentCopy,
             contentDescription = "Copy",
-            tint = Color.White.copy(alpha = 0.6f),
+            tint = WardenTextMuted,
             modifier = Modifier.size((14 * scaleFactor).dp)
         )
     }
@@ -397,7 +400,7 @@ private fun ProxyCopyRow(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun IosStatusHeroCard(
+fun WardenStatusHeroCard(
     connectionStatus: ConnectionStatus,
     elapsedSeconds: Long,
     sessionTraffic: SessionTraffic,
@@ -412,10 +415,10 @@ fun IosStatusHeroCard(
 ) {
     val statusColor by animateColorAsState(
         targetValue = when (connectionStatus) {
-            ConnectionStatus.RUNNING -> IosActiveGreen
-            ConnectionStatus.STARTING, ConnectionStatus.VALIDATING, ConnectionStatus.RECONNECTING, ConnectionStatus.STOPPING -> IosScanningAmber
-            ConnectionStatus.ERROR -> IosErrorRed
-            ConnectionStatus.STOPPED -> IosSecondaryLabel
+            ConnectionStatus.RUNNING -> WardenSuccess
+            ConnectionStatus.STARTING, ConnectionStatus.VALIDATING, ConnectionStatus.RECONNECTING, ConnectionStatus.STOPPING -> WardenWarning
+            ConnectionStatus.ERROR -> WardenError
+            ConnectionStatus.STOPPED -> WardenTextMuted
         },
         label = "statusColor"
     )
@@ -423,10 +426,11 @@ fun IosStatusHeroCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("status_hero_card"),
+            .testTag("status_hero_card")
+            .border(1.dp, WardenCardBorder, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = IosCardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = WardenCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
@@ -434,7 +438,7 @@ fun IosStatusHeroCard(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            statusColor.copy(alpha = 0.12f),
+                            statusColor.copy(alpha = 0.08f),
                             Color.Transparent
                         )
                     )
@@ -475,7 +479,7 @@ fun IosStatusHeroCard(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = IosGroupBg
+                        color = WardenAccentSub
                     ) {
                         val protocolText = if (config.protocol == AetherProtocol.MASQUE) {
                             if (config.h2Mode) "MASQUE (H2)" else "MASQUE (H3)"
@@ -487,7 +491,7 @@ fun IosStatusHeroCard(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = IosActiveBlue,
+                            color = WardenAccent,
                             fontSize = (8.5 * scaleFactor).sp
                         )
                     }
@@ -495,4 +499,94 @@ fun IosStatusHeroCard(
             }
         }
     }
-}                           
+}
+
+@Composable
+fun WardenPowerButton(
+    connectionStatus: ConnectionStatus,
+    onToggle: () -> Unit,
+    size: Dp
+) {
+    val isRunning = connectionStatus == ConnectionStatus.RUNNING
+    val isConnecting = connectionStatus == ConnectionStatus.STARTING || 
+                       connectionStatus == ConnectionStatus.VALIDATING || 
+                       connectionStatus == ConnectionStatus.RECONNECTING
+
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            isRunning -> WardenSuccess
+            isConnecting -> WardenWarning
+            connectionStatus == ConnectionStatus.ERROR -> WardenError
+            else -> WardenAccent
+        }, label = "PowerBtnColor"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .shadow(if (isRunning) 24.dp else 12.dp, CircleShape, spotColor = containerColor.copy(alpha = 0.6f))
+            .clip(CircleShape)
+            .background(containerColor)
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.Center
+    ) {
+        // حلقه بیرونی برای انیمیشن اتصال
+        if (isConnecting) {
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.size(size - 16.dp),
+                strokeWidth = 3.dp
+            )
+        }
+        
+        Icon(
+            imageVector = if (isRunning) Icons.Default.Stop else Icons.Default.PowerSettingsNew,
+            contentDescription = "Toggle Connection",
+            tint = Color.White,
+            modifier = Modifier.size(size * 0.4f)
+        )
+    }
+}
+
+@Composable
+fun WardenProtocolSegmentedControl(
+    selectedProtocol: AetherProtocol,
+    onProtocolSelected: (AetherProtocol) -> Unit,
+    enabled: Boolean,
+    scaleFactor: Float
+) {
+    val protocols = AetherProtocol.values().toList()
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(WardenCard, RoundedCornerShape(12.dp))
+            .border(1.dp, WardenCardBorder, RoundedCornerShape(12.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        protocols.forEach { protocol ->
+            val isSelected = protocol == selectedProtocol
+            val bgColor by animateColorAsState(if (isSelected) WardenAccentSub else Color.Transparent, label = "")
+            val contentColor by animateColorAsState(if (isSelected) WardenAccent else WardenTextMuted, label = "")
+            
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(bgColor)
+                    .clickable(enabled = enabled) { onProtocolSelected(protocol) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = protocol.displayName,
+                    color = contentColor,
+                    fontSize = (12 * scaleFactor).sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
