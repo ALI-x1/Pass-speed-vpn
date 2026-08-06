@@ -6,10 +6,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-/**
- * یک پالت کامل: هم رنگ‌های Material3 و هم رنگ‌های اختصاصی اپ
- * (وضعیت اتصال / اسکن / خطا)
- */
 data class AppTheme(
     val id: String,
     val label: String,
@@ -21,17 +17,10 @@ data class AppTheme(
     val error: Color,
 )
 
-/* ----------------------------------------------------------------------
- * رنگ‌های عمومی وضعیت (سبز/کهربایی/قرمز) که برای اکثر تم‌ها یکسانه
- * ---------------------------------------------------------------------- */
 private val GenericConnected = Color(0xFF2ECC71)
 private val GenericScanning = Color(0xFFFFC53D)
 private val GenericError = Color(0xFFFF5C5C)
 
-/* ----------------------------------------------------------------------
- * تم فعلی پروژه (بنفش تیره) — رنگ‌هاش دقیقاً همون Elegant* قبلیه،
- * که در Color.kt تعریف شده. این تم برای حفظ ظاهر فعلی اپ نگه داشته می‌شه.
- * ---------------------------------------------------------------------- */
 private val DarkPurpleScheme = darkColorScheme(
     primary = ElegantPrimary,
     onPrimary = ElegantOnPrimary,
@@ -46,10 +35,6 @@ private val DarkPurpleScheme = darkColorScheme(
     onSurfaceVariant = ElegantTextSecondary,
     outline = ElegantOutline,
 )
-
-/* ----------------------------------------------------------------------
- * ۵ تم روشن
- * ---------------------------------------------------------------------- */
 
 private val LightYellowScheme = lightColorScheme(
     primary = Color(0xFFC98F1E),
@@ -126,10 +111,6 @@ private val LightPurpleScheme = lightColorScheme(
     outline = Color(0xFFD5C1F0),
 )
 
-/* ----------------------------------------------------------------------
- * ۴ تم تیره‌ی دیگر (زرد/سبز/آبی/صورتی) — بنفش تیره در بالا تعریف شد
- * ---------------------------------------------------------------------- */
-
 private val DarkYellowScheme = darkColorScheme(
     primary = Color(0xFFFFC53D),
     onPrimary = Color(0xFF3D2E00),
@@ -190,9 +171,6 @@ private val DarkPinkScheme = darkColorScheme(
     outline = Color(0xFF4E3540),
 )
 
-/* ----------------------------------------------------------------------
- * لیست کامل تم‌ها — ترتیب دقیقاً مثل طرحی که فرستادی
- * ---------------------------------------------------------------------- */
 val AppThemes: List<AppTheme> = listOf(
     AppTheme("light-yellow", "زرد روشن", "🌕", false, LightYellowScheme, GenericConnected, GenericScanning, GenericError),
     AppTheme("light-green", "سبز روشن", "🟢", false, LightGreenScheme, GenericConnected, GenericScanning, GenericError),
@@ -204,9 +182,7 @@ val AppThemes: List<AppTheme> = listOf(
     AppTheme("dark-green", "سبز تیره", "🌲", true, DarkGreenScheme, GenericConnected, GenericScanning, GenericError),
     AppTheme("dark-blue", "آبی تیره", "🌊", true, DarkBlueScheme, GenericConnected, GenericScanning, GenericError),
     AppTheme("dark-pink", "صورتی تیره", "🌹", true, DarkPinkScheme, GenericConnected, GenericScanning, GenericError),
-    // تم پیش‌فرض فعلی پروژه (بدون تغییر رنگ)
-    AppTheme("dark-purple", "بنفش تیره", "🔮", true, DarkPurpleScheme, ConnectedGreen, ScanningAmber, ErrorRed),
+    AppTheme("dark-purple", "بنفش تیره", "🔮", true, DarkPurpleScheme, GenericConnected, GenericScanning, GenericError),
 )
 
-/** برای دسترسی به رنگ‌های اختصاصی هر تم از داخل هر Composable */
 val LocalAppTheme = staticCompositionLocalOf { AppThemes.last() }
