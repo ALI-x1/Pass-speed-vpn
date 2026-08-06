@@ -4,7 +4,6 @@ import android.app.Activity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -19,10 +18,8 @@ fun MyApplicationTheme(
 ) {
     val context = LocalContext.current
 
-    // فقط یک‌بار: آخرین تم ذخیره‌شده رو از حافظه بخون
-    LaunchedEffect(Unit) {
-        ThemeManager.init(context)
-    }
+    // خواندن تم ذخیره‌شده قبل از رندر اولیه
+    ThemeManager.init(context)
 
     val appTheme = ThemeManager.currentTheme
     val colorScheme = appTheme.colorScheme
@@ -30,12 +27,12 @@ fun MyApplicationTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val activity = view.context as Activity
-            activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            val window = activity.window
-            val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = !appTheme.isDark
-            insetsController.isAppearanceLightNavigationBars = !appTheme.isDark
+            val activity = view.context as? Activity ?: context as? Activity
+            activity?.window?.let { window ->
+                val insetsController = WindowCompat.getInsetsController(window, view)
+                insetsController.isAppearanceLightStatusBars = !appTheme.isDark
+                insetsController.isAppearanceLightNavigationBars = !appTheme.isDark
+            }
         }
     }
 
