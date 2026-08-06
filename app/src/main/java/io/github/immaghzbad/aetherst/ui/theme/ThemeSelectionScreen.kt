@@ -35,10 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/**
- * صفحه‌ی «انتخاب تم»، شبیه تلگرام: یک کارت بزرگ برای تم فعال،
- * بعد دو بخش «روشن» و «تیره» با کارت‌های کوچیکِ قابل لمس.
- */
 @Composable
 fun ThemeSelectionScreen(
     modifier: Modifier = Modifier,
@@ -52,6 +48,7 @@ fun ThemeSelectionScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
@@ -67,7 +64,8 @@ fun ThemeSelectionScreen(
         Text(
             text = "انتخاب تم",
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(Modifier.height(4.dp))
         Text(
@@ -106,11 +104,9 @@ private fun SectionLabel(text: String) {
     )
 }
 
-/* ---------------------------------------------------------------------- */
-
 @Composable
 private fun ActiveThemeCard(theme: AppTheme) {
-    val cardBg = if (theme.isDark) theme.colorScheme.surface else theme.colorScheme.background
+    val cardBg = if (theme.isDark) theme.colorScheme.surface else theme.colorScheme.surfaceVariant
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -135,7 +131,7 @@ private fun ActiveThemeCard(theme: AppTheme) {
                     text = "${theme.emoji} ${theme.label}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (theme.isDark) theme.colorScheme.onSurface else theme.colorScheme.onBackground
+                    color = theme.colorScheme.onSurface
                 )
                 Text(
                     text = if (theme.isDark) "تم تیره · فعال" else "تم روشن · فعال",
@@ -152,8 +148,6 @@ private fun ActiveThemeCard(theme: AppTheme) {
         )
     }
 }
-
-/* ---------------------------------------------------------------------- */
 
 @Composable
 private fun ThemeGrid(
@@ -191,8 +185,8 @@ private fun ThemeMiniCard(
     onClick: () -> Unit
 ) {
     val borderColor = if (selected) theme.colorScheme.primary else theme.colorScheme.outline.copy(alpha = 0.5f)
-    val cardBg = if (theme.isDark) theme.colorScheme.surface else theme.colorScheme.background
-    val textColor = if (theme.isDark) theme.colorScheme.onSurface else theme.colorScheme.onBackground
+    val cardBg = if (theme.isDark) theme.colorScheme.surface else theme.colorScheme.surfaceVariant
+    val textColor = theme.colorScheme.onSurface
 
     Box(
         modifier = modifier
