@@ -35,7 +35,6 @@ import io.github.immaghzbad.aetherst.data.PingState
 import io.github.immaghzbad.aetherst.model.*
 import kotlinx.coroutines.launch
 
-// ---- رنگ‌های اختصاصی Warden ----
 private val WardenBgSub = Color(0xFFE8EEFF)
 private val WardenCard = Color(0xFFFFFFFF)
 private val WardenCardBorder = Color(0xFFDDEAFF)
@@ -58,7 +57,6 @@ fun DashboardScreen(
     onToggleVpn: () -> Unit,
     onUpdateProtocol: (AetherProtocol) -> Unit,
     onOpenSettings: () -> Unit = {},
-    onOpenThemes: () -> Unit = {},
     onRefreshIpInfo: () -> Unit = {},
     onRefreshPing: () -> Unit = {},
     onShowToast: (String, Boolean) -> Unit = { _, _ -> },
@@ -66,7 +64,6 @@ fun DashboardScreen(
 ) {
     var showProxyOverlay by remember { mutableStateOf(true) }
 
-    // بررسی وضعیت اتصال برای نمایش پراکسی[span_2](start_span)[span_2](end_span)
     LaunchedEffect(connectionStatus) {
         if (connectionStatus != ConnectionStatus.RUNNING) {
             showProxyOverlay = true
@@ -76,7 +73,7 @@ fun DashboardScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(WardenBgSub) // تغییر رنگ پس‌زمینه به تم Warden
+            .background(WardenBgSub)
     ) {
         val screenWidth = this.maxWidth
         val screenHeight = this.maxHeight
@@ -101,7 +98,6 @@ fun DashboardScreen(
                     .padding(top = 12.dp),
                 verticalArrangement = Arrangement.spacedBy((14 * scaleFactor).dp)
             ) {
-                // هدر بالای داشبورد
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -112,14 +108,14 @@ fun DashboardScreen(
                             text = "Warden VPN",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = WardenText, // تغییر رنگ متن
+                            color = WardenText,
                             fontSize = (26 * scaleFactor).sp,
                             lineHeight = (30 * scaleFactor).sp
                         )
                         Text(
                             text = if (config.connectionMode == ConnectionMode.TUNNEL) "Secure & Private" else "High-Performance Local Proxy",
                             style = MaterialTheme.typography.bodySmall,
-                            color = WardenTextMuted, // تغییر رنگ متن ثانویه
+                            color = WardenTextMuted,
                             fontSize = (12 * scaleFactor).sp,
                             lineHeight = (16 * scaleFactor).sp
                         )
@@ -140,12 +136,12 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width((8 * scaleFactor).dp))
                         }
                         IconButton(
-                            onClick = onOpenThemes,
+                            onClick = onOpenSettings,
                             modifier = Modifier.size((36 * scaleFactor).dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Palette,
-                                contentDescription = "Themes",
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
                                 tint = WardenTextMuted,
                                 modifier = Modifier.size((24 * scaleFactor).dp)
                             )
@@ -153,7 +149,6 @@ fun DashboardScreen(
                     }
                 }
 
-                // کارت وضعیت اصلی
                 WardenStatusHeroCard(
                     connectionStatus = connectionStatus,
                     elapsedSeconds = elapsedSeconds,
@@ -168,12 +163,11 @@ fun DashboardScreen(
                     scaleFactor = scaleFactor
                 )
 
-                // خطای اتصال[span_3](start_span)[span_3](end_span)
                 if (!isVeryCompactHeight && connectionStatus == ConnectionStatus.ERROR) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
+                        .padding(top = 4.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = WardenError.copy(alpha = 0.1f))
                     ) {
@@ -194,7 +188,6 @@ fun DashboardScreen(
                 }
             }
 
-            // بخش دکمه اتصال مرکزی[span_4](start_span)[span_4](end_span)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -212,7 +205,6 @@ fun DashboardScreen(
                 )
             }
 
-            // انتخاب پروتکل[span_5](start_span)[span_5](end_span)
             if (!isVeryCompactHeight) {
                 Column(
                     modifier = Modifier
@@ -229,7 +221,6 @@ fun DashboardScreen(
             }
         }
 
-        // انیمیشن و لاجیک نمایش پراکسی به صورت دست‌نخورده[span_6](start_span)[span_6](end_span)
         val offsetY = remember { Animatable(0f) }
         val scope = rememberCoroutineScope()
 
@@ -280,10 +271,6 @@ fun DashboardScreen(
         }
     }
 }
-
-// ========================================================
-// کامپوننت‌های بازنویسی شده بر اساس ظاهر Warden
-// ========================================================
 
 @Composable
 fun ProxyOverlayPill(
@@ -530,7 +517,6 @@ fun WardenPowerButton(
             .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center
     ) {
-        // حلقه بیرونی برای انیمیشن اتصال
         if (isConnecting) {
             CircularProgressIndicator(
                 color = Color.White,
