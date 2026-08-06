@@ -58,12 +58,13 @@ fun SettingsScreen(
     onOptimizeMtu: () -> Unit,
     isOptimizingMtu: Boolean = false,
     onShowToast: (String, Boolean) -> Unit = { _, _ -> },
+    onOpenThemes: () -> Unit = {},
+    onOpenLogs: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
 ) {
     val focusManager = LocalFocusManager.current
     var searchQuery by remember { mutableStateOf("") }
-    var showAdvancedZeroTrust by remember { mutableStateOf(false) }
-    var showResetDialog by remember { mutableStateOf(false) }
     
     val fullBackupPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent(),
@@ -341,6 +342,44 @@ fun SettingsScreen(
                                 scaleFactor = scaleFactor
                             )
                         }
+                    }
+                }
+            }
+
+            // بخش اضافه شده برای تم، لاگ و درباره برنامه
+            item {
+                IosSectionHeader(title = "APP SETTINGS & INFO", scaleFactor = scaleFactor)
+                IosGroupCard {
+                    Column {
+                        IosPresetItem(
+                            icon = Icons.Default.Palette,
+                            iconBg = Color(0xFF007AFF),
+                            title = "Themes",
+                            subtitle = "Customize application appearance",
+                            isActive = false,
+                            onClick = onOpenThemes,
+                            scaleFactor = scaleFactor
+                        )
+                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                        IosPresetItem(
+                            icon = Icons.Default.Code,
+                            iconBg = Color(0xFF34C759),
+                            title = "Application Logs",
+                            subtitle = "View connection and system logs",
+                            isActive = false,
+                            onClick = onOpenLogs,
+                            scaleFactor = scaleFactor
+                        )
+                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                        IosPresetItem(
+                            icon = Icons.Default.Info,
+                            iconBg = Color(0xFFFF9500),
+                            title = "About Us",
+                            subtitle = "Version, license, and information",
+                            isActive = false,
+                            onClick = onOpenAbout,
+                            scaleFactor = scaleFactor
+                        )
                     }
                 }
             }
