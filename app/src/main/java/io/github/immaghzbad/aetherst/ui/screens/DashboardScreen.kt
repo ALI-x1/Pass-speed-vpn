@@ -109,7 +109,7 @@ fun DashboardScreen(
                 ) {
                     Column {
                         Text(
-                            text = "AetherST Tunnel",
+                            text = "Warden VPN",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = WardenText, // تغییر رنگ متن
@@ -117,7 +117,7 @@ fun DashboardScreen(
                             lineHeight = (30 * scaleFactor).sp
                         )
                         Text(
-                            text = if (config.connectionMode == ConnectionMode.TUNNEL) "Secure & Private Tunneling" else "High-Performance Local Proxy",
+                            text = if (config.connectionMode == ConnectionMode.TUNNEL) "Secure & Private" else "High-Performance Local Proxy",
                             style = MaterialTheme.typography.bodySmall,
                             color = WardenTextMuted, // تغییر رنگ متن ثانویه
                             fontSize = (12 * scaleFactor).sp,
