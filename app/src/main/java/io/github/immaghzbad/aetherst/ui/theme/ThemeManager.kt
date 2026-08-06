@@ -7,15 +7,8 @@ import androidx.compose.runtime.setValue
 
 private const val PREFS_NAME = "aetherst_theme_prefs"
 private const val KEY_THEME_ID = "selected_theme_id"
-
-// همون تم فعلی پروژه (بنفش تیره) به عنوان پیش‌فرض، تا ظاهر اپ برای
-// کاربرهای فعلی عوض نشه.
 private const val DEFAULT_THEME_ID = "dark-purple"
 
-/**
- * انتخاب فعلی تم رو نگه می‌داره و بین راه‌اندازی‌های اپ ذخیره می‌کنه.
- * از SharedPreferences استفاده می‌کنه (هیچ کتابخونه‌ی جدیدی لازم نداره).
- */
 object ThemeManager {
 
     var selectedThemeId by mutableStateOf(DEFAULT_THEME_ID)
@@ -28,7 +21,7 @@ object ThemeManager {
 
     private var initialized = false
 
-    /** فقط یک‌بار در ابتدای اجرای اپ (داخل MyApplicationTheme) صدا زده می‌شه */
+    /** فراخوانی مستقیم و هم‌زمان تم ذخیره‌شده جهت جلوگیری از پرش رنگ */
     fun init(context: Context) {
         if (initialized) return
         initialized = true
@@ -39,7 +32,7 @@ object ThemeManager {
         }
     }
 
-    /** برای صدا زدن از صفحه‌ی انتخاب تم، وقتی کاربر تم جدید انتخاب می‌کنه */
+    /** اعمال تم جدید و ذخیره‌سازی آن */
     fun setTheme(context: Context, themeId: String) {
         if (AppThemes.none { it.id == themeId }) return
         selectedThemeId = themeId
