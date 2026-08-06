@@ -33,18 +33,8 @@ import androidx.compose.ui.unit.sp
 import io.github.immaghzbad.aetherst.data.IpInfo
 import io.github.immaghzbad.aetherst.data.PingState
 import io.github.immaghzbad.aetherst.model.*
+import io.github.immaghzbad.aetherst.ui.theme.LocalAppTheme
 import kotlinx.coroutines.launch
-
-private val WardenBgSub = Color(0xFFE8EEFF)
-private val WardenCard = Color(0xFFFFFFFF)
-private val WardenCardBorder = Color(0xFFDDEAFF)
-private val WardenAccent = Color(0xFF2B82D4)
-private val WardenAccentSub = Color(0xFFE5F0FA)
-private val WardenText = Color(0xFF0D1B2A)
-private val WardenTextMuted = Color(0xFF7A9CC2)
-private val WardenSuccess = Color(0xFF22C55E)
-private val WardenWarning = Color(0xFFF59E0B)
-private val WardenError = Color(0xFFEF4444)
 
 @Composable
 fun DashboardScreen(
@@ -73,7 +63,7 @@ fun DashboardScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(WardenBgSub)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         val screenWidth = this.maxWidth
         val screenHeight = this.maxHeight
@@ -108,14 +98,14 @@ fun DashboardScreen(
                             text = "Warden VPN",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = WardenText,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = (26 * scaleFactor).sp,
                             lineHeight = (30 * scaleFactor).sp
                         )
                         Text(
                             text = if (config.connectionMode == ConnectionMode.TUNNEL) "Secure & Private" else "High-Performance Local Proxy",
                             style = MaterialTheme.typography.bodySmall,
-                            color = WardenTextMuted,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = (12 * scaleFactor).sp,
                             lineHeight = (16 * scaleFactor).sp
                         )
@@ -129,7 +119,7 @@ fun DashboardScreen(
                                 Icon(
                                     imageVector = Icons.Default.Info,
                                     contentDescription = "Proxy Info",
-                                    tint = WardenAccent,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size((22 * scaleFactor).dp)
                                 )
                             }
@@ -142,7 +132,7 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Settings",
-                                tint = WardenTextMuted,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size((24 * scaleFactor).dp)
                             )
                         }
@@ -164,22 +154,23 @@ fun DashboardScreen(
                 )
 
                 if (!isVeryCompactHeight && connectionStatus == ConnectionStatus.ERROR) {
+                    val errorColor = LocalAppTheme.current.error
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                        .padding(top = 4.dp),
+                            .padding(top = 4.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = WardenError.copy(alpha = 0.1f))
+                        colors = CardDefaults.cardColors(containerColor = errorColor.copy(alpha = 0.1f))
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Refresh, null, tint = WardenError, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Refresh, null, tint = errorColor, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "Connection failed. Please try reconnecting.",
-                                color = WardenError,
+                                color = errorColor,
                                 fontSize = (11 * scaleFactor).sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -289,10 +280,10 @@ fun ProxyOverlayPill(
         modifier = Modifier
             .widthIn(max = 400.dp)
             .padding(horizontal = 8.dp)
-            .shadow(16.dp, RoundedCornerShape(20.dp), spotColor = WardenAccent.copy(alpha = 0.2f)),
+            .shadow(16.dp, RoundedCornerShape(20.dp), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
         shape = RoundedCornerShape(20.dp),
-        color = WardenCard,
-        border = androidx.compose.foundation.BorderStroke(1.dp, WardenCardBorder)
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -303,10 +294,10 @@ fun ProxyOverlayPill(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(WardenAccentSub),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Dns, null, tint = WardenAccent, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Dns, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
             }
             
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -330,13 +321,13 @@ fun ProxyOverlayPill(
                 )
             }
 
-            VerticalDivider(modifier = Modifier.height(36.dp), thickness = 1.dp, color = WardenCardBorder)
+            VerticalDivider(modifier = Modifier.height(36.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
 
             IconButton(
                 onClick = onHide,
                 modifier = Modifier.size(32.dp)
             ) {
-                Icon(Icons.Default.Close, null, tint = WardenTextMuted, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -362,7 +353,7 @@ private fun ProxyCopyRow(
             Text(
                 text = "$label:",
                 style = MaterialTheme.typography.labelSmall,
-                color = WardenAccent,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = (9 * scaleFactor).sp
             )
@@ -370,7 +361,7 @@ private fun ProxyCopyRow(
             Text(
                 text = address,
                 style = MaterialTheme.typography.bodyMedium,
-                color = WardenText,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = (12 * scaleFactor).sp,
                 maxLines = 1
@@ -379,7 +370,7 @@ private fun ProxyCopyRow(
         Icon(
             imageVector = Icons.Default.ContentCopy,
             contentDescription = "Copy",
-            tint = WardenTextMuted,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size((14 * scaleFactor).dp)
         )
     }
@@ -400,12 +391,14 @@ fun WardenStatusHeroCard(
     hideConfigChips: Boolean = false,
     scaleFactor: Float = 1f
 ) {
+    val appTheme = LocalAppTheme.current
+    val defaultMutedColor = MaterialTheme.colorScheme.onSurfaceVariant
     val statusColor by animateColorAsState(
         targetValue = when (connectionStatus) {
-            ConnectionStatus.RUNNING -> WardenSuccess
-            ConnectionStatus.STARTING, ConnectionStatus.VALIDATING, ConnectionStatus.RECONNECTING, ConnectionStatus.STOPPING -> WardenWarning
-            ConnectionStatus.ERROR -> WardenError
-            ConnectionStatus.STOPPED -> WardenTextMuted
+            ConnectionStatus.RUNNING -> appTheme.connected
+            ConnectionStatus.STARTING, ConnectionStatus.VALIDATING, ConnectionStatus.RECONNECTING, ConnectionStatus.STOPPING -> appTheme.scanning
+            ConnectionStatus.ERROR -> appTheme.error
+            ConnectionStatus.STOPPED -> defaultMutedColor
         },
         label = "statusColor"
     )
@@ -414,9 +407,9 @@ fun WardenStatusHeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("status_hero_card")
-            .border(1.dp, WardenCardBorder, RoundedCornerShape(16.dp)),
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = WardenCard),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
@@ -466,7 +459,7 @@ fun WardenStatusHeroCard(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = WardenAccentSub
+                        color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         val protocolText = if (config.protocol == AetherProtocol.MASQUE) {
                             if (config.h2Mode) "MASQUE (H2)" else "MASQUE (H3)"
@@ -478,7 +471,7 @@ fun WardenStatusHeroCard(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = WardenAccent,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = (8.5 * scaleFactor).sp
                         )
                     }
@@ -499,12 +492,15 @@ fun WardenPowerButton(
                        connectionStatus == ConnectionStatus.VALIDATING || 
                        connectionStatus == ConnectionStatus.RECONNECTING
 
+    val appTheme = LocalAppTheme.current
+    val defaultPrimary = MaterialTheme.colorScheme.primary
+
     val containerColor by animateColorAsState(
         targetValue = when {
-            isRunning -> WardenSuccess
-            isConnecting -> WardenWarning
-            connectionStatus == ConnectionStatus.ERROR -> WardenError
-            else -> WardenAccent
+            isRunning -> appTheme.connected
+            isConnecting -> appTheme.scanning
+            connectionStatus == ConnectionStatus.ERROR -> appTheme.error
+            else -> defaultPrimary
         }, label = "PowerBtnColor"
     )
 
@@ -519,7 +515,7 @@ fun WardenPowerButton(
     ) {
         if (isConnecting) {
             CircularProgressIndicator(
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(size - 16.dp),
                 strokeWidth = 3.dp
             )
@@ -528,7 +524,7 @@ fun WardenPowerButton(
         Icon(
             imageVector = if (isRunning) Icons.Default.Stop else Icons.Default.PowerSettingsNew,
             contentDescription = "Toggle Connection",
-            tint = Color.White,
+            tint = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier.size(size * 0.4f)
         )
     }
@@ -546,15 +542,15 @@ fun WardenProtocolSegmentedControl(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(WardenCard, RoundedCornerShape(12.dp))
-            .border(1.dp, WardenCardBorder, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         protocols.forEach { protocol ->
             val isSelected = protocol == selectedProtocol
-            val bgColor by animateColorAsState(if (isSelected) WardenAccentSub else Color.Transparent, label = "")
-            val contentColor by animateColorAsState(if (isSelected) WardenAccent else WardenTextMuted, label = "")
+            val bgColor by animateColorAsState(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, label = "")
+            val contentColor by animateColorAsState(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, label = "")
             
             Box(
                 modifier = Modifier
