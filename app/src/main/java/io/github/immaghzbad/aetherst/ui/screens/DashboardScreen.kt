@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -491,42 +492,145 @@ fun WardenPowerButton(
     val isConnecting = connectionStatus == ConnectionStatus.STARTING || 
                        connectionStatus == ConnectionStatus.VALIDATING || 
                        connectionStatus == ConnectionStatus.RECONNECTING
+    val isError = connectionStatus == ConnectionStatus.ERROR
 
     val appTheme = LocalAppTheme.current
-    val defaultPrimary = MaterialTheme.colorScheme.primary
+    val inactiveColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
 
-    val containerColor by animateColorAsState(
+    // انیمیشن نرم برای رنگ اصلی براساس تم و وضعیت
+    val mainColor by animateColorAsState(
         targetValue = when {
             isRunning -> appTheme.connected
             isConnecting -> appTheme.scanning
-            connectionStatus == ConnectionStatus.ERROR -> appTheme.error
-            else -> defaultPrimary
-        }, label = "PowerBtnColor"
+            isError -> appTheme.error
+            else -> inactiveColor
+        },
+        animationSpec = tween(durationMillis = 400),
+        label = "MainColorAnimation"
+    )
+
+    // پس‌زمینه داخلی دکمه (نیمه‌شفاف)
+    val animatedContainerColor by animateColorAsState(
+        targetValue = when {
+            isRunning -> appTheme.connected.copy(alpha = 0.12f)
+            isConnecting -> appTheme.scanning.copy(alpha = 0.12f)
+            isError -> appTheme.error.copy(alpha = 0.12f)
+            else -> Color.Transparent
+        },
+        animationSpec = tween(durationMillis = 400),
+        label = "ContainerColorAnimation"
+    )
+
+    // انیمیشن ضربان (Pulse Glow) فقط در حالت متصل
+    val infiniteTransition = rememberInfiniteTransition(label = "GlowTransition")
+    
+    val haloScale by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = if (isRunning) 1.28f else 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "HaloScale"
+    )
+
+    val haloAlpha by infiniteTransition.animateFloat(
+        initialValue = if (isRunning) 0.35f else 0.0f,
+        targetValue = if (isRunning) 0.02f else 0.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "HaloAlpha"
+    )
+
+    // انیمیشن فنری برای لمس دکمه
+    var isPressed by remember { mutableStateOf(false) }
+    val buttonClickScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.93f else 1.0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "ClickScale"
     )
 
     Box(
-        modifier = Modifier
-            .size(size)
-            .shadow(if (isRunning) 24.dp else 12.dp, CircleShape, spotColor = containerColor.copy(alpha = 0.6f))
-            .clip(CircleShape)
-            .background(containerColor)
-            .clickable(onClick = onToggle),
+        modifier = Modifier.size(size * 1.4f), // ایجاد فضای بیشتر برای هاله
         contentAlignment = Alignment.Center
     ) {
-        if (isConnecting) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(size - 16.dp),
-                strokeWidth = 3.dp
+        // هاله‌های نورانی (فقط وقتی متصل است پخش می‌شود)
+        if (isRunning) {
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .scale(haloScale * 1.12f)
+                    .clip(CircleShape)
+                    .background(mainColor.copy(alpha = haloAlpha * 0.4f))
+            )
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .scale(haloScale)
+                    .clip(CircleShape)
+                    .background(mainColor.copy(alpha = haloAlpha))
             )
         }
-        
-        Icon(
-            imageVector = if (isRunning) Icons.Default.Stop else Icons.Default.PowerSettingsNew,
-            contentDescription = "Toggle Connection",
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(size * 0.4f)
-        )
+
+        // هسته دکمه تعاملی
+        Box(
+            modifier = Modifier
+                .size(size)
+                .scale(buttonClickScale)
+                .clip(CircleShape)
+                .background(animatedContainerColor)
+                .border(
+                    width = 3.dp,
+                    color = mainColor,
+                    shape = CircleShape
+                )
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        isPressed = true
+                        onToggle()
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            LaunchedEffect(isPressed) {
+                if (isPressed) {
+                    kotlinx.coroutines.delay(100)
+                    isPressed = false
+                }
+            }
+
+            // نمایش Loading موقع اتصال، یا آیکون+متن موقع توقف/اتصال موفق
+            if (isConnecting) {
+                CircularProgressIndicator(
+                    color = mainColor,
+                    modifier = Modifier.size(size * 0.35f),
+                    strokeWidth = 3.dp
+                )
+            } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = if (isRunning) "Disconnect" else "Connect",
+                        tint = mainColor,
+                        modifier = Modifier.size(size * 0.28f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (isRunning) "قطع کن" else "اتصال",
+                        color = mainColor,
+                        fontSize = (size.value * 0.12f).sp, // فونت داینامیک براساس سایز
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
     }
 }
 
