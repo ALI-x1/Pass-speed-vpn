@@ -1,6 +1,9 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,14 +34,8 @@ import androidx.compose.ui.unit.sp
 import io.github.immaghzbad.aetherst.core.NetworkUtils
 import io.github.immaghzbad.aetherst.model.*
 
-private val IosCardBackground = Color(0xFF1C1C1E)
-private val IosGroupBackground = Color(0xFF2C2C2E)
-private val IosSecondaryLabel = Color(0xFF8E8E93)
-private val IosActiveBlue = Color(0xFF007AFF)
-private val IosDividerColor = Color(0xFF2C2C2E)
-private val IosActiveSwitchGreen = Color(0xFF34C759)
-private val IosInactiveSwitchTrack = Color(0xFF3A3A3C)
-
+// رنگ‌های داینامیک و متصل به تم اپلیکیشن
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     config: AetherConfig,
@@ -66,6 +63,19 @@ fun SettingsScreen(
     val focusManager = LocalFocusManager.current
     var searchQuery by remember { mutableStateOf("") }
     
+    // وضعیت‌های باز و بسته بودن منوهای فشرده (پاپ‌آپ‌ها)
+    var showProfilesSheet by remember { mutableStateOf(false) }
+    var showConnectionSheet by remember { mutableStateOf(false) }
+
+    // اتصال رنگ‌ها به تم اصلی متریال دیزاین تا با تغییر تم عوض شوند
+    val bgColor = MaterialTheme.colorScheme.background
+    val cardBg = MaterialTheme.colorScheme.surface
+    val groupBg = MaterialTheme.colorScheme.surfaceVariant
+    val primaryText = MaterialTheme.colorScheme.onBackground
+    val secondaryText = MaterialTheme.colorScheme.onSurfaceVariant
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant
+    val activeColor = MaterialTheme.colorScheme.primary
+
     val fullBackupPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent(),
     ) { uri -> uri?.let { onImportBackup(it) } }
@@ -73,7 +83,7 @@ fun SettingsScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(bgColor) // رفع مشکل تم مشکی ثابت
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
@@ -98,45 +108,47 @@ fun SettingsScreen(
                 start = horizontalPadding,
                 top = 0.dp,
                 end = horizontalPadding,
-                bottom = bottomContentPadding + 12.dp
+                bottom = bottomContentPadding + 24.dp
             ),
-            verticalArrangement = Arrangement.spacedBy((18 * scaleFactor).dp)
+            verticalArrangement = Arrangement.spacedBy((20 * scaleFactor).dp)
         ) {
             item {
                 Row(
                     modifier = Modifier
                         .statusBarsPadding()
-                        .padding(top = 12.dp)
+                        .padding(top = 16.dp, bottom = 8.dp)
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onBack,
-                        modifier = Modifier.size((36 * scaleFactor).dp)
+                        modifier = Modifier
+                            .size((40 * scaleFactor).dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(groupBg)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color.White,
+                            tint = primaryText,
                             modifier = Modifier.size((22 * scaleFactor).dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text(
-                            text = "Warden Settings",
+                            text = "Settings",
                             style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            fontSize = (26 * scaleFactor).sp,
-                            lineHeight = (30 * scaleFactor).sp
+                            fontWeight = FontWeight.ExtraBold,
+                            color = primaryText,
+                            fontSize = (28 * scaleFactor).sp,
+                            lineHeight = (32 * scaleFactor).sp
                         )
                         Text(
-                            text = "Configure engine protocols, obfuscation & transport parameters",
+                            text = "Configure engine protocols & transport",
                             style = MaterialTheme.typography.bodySmall,
-                            color = IosSecondaryLabel,
-                            fontSize = (12 * scaleFactor).sp,
-                            lineHeight = (16 * scaleFactor).sp
+                            color = secondaryText,
+                            fontSize = (13 * scaleFactor).sp,
                         )
                     }
                 }
@@ -148,21 +160,22 @@ fun SettingsScreen(
                     onValueChange = { searchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height((44 * scaleFactor).dp)
-                        .background(IosCardBackground, RoundedCornerShape(12.dp)),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White, fontSize = (14 * scaleFactor).sp),
+                        .height((48 * scaleFactor).dp)
+                        .background(cardBg, RoundedCornerShape(14.dp))
+                        .border(1.dp, dividerColor, RoundedCornerShape(14.dp)),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = primaryText, fontSize = (15 * scaleFactor).sp),
                     singleLine = true,
-                    cursorBrush = SolidColor(IosActiveBlue),
+                    cursorBrush = SolidColor(activeColor),
                     decorationBox = { innerTextField ->
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Search, null, tint = IosSecondaryLabel, modifier = Modifier.size((20 * scaleFactor).dp))
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.Default.Search, null, tint = secondaryText, modifier = Modifier.size((22 * scaleFactor).dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Box(contentAlignment = Alignment.CenterStart) {
                                 if (searchQuery.isEmpty()) {
-                                    Text("Search settings...", color = IosSecondaryLabel, fontSize = (13 * scaleFactor).sp)
+                                    Text("Search settings...", color = secondaryText, fontSize = (15 * scaleFactor).sp)
                                 }
                                 innerTextField()
                             }
@@ -171,214 +184,218 @@ fun SettingsScreen(
                 )
             }
 
-            if (searchQuery.isEmpty() || "Preset Profiles Custom Manual Tweaks Bypass UDP TLS Ironclad Stealth Turbo Speed".contains(searchQuery, ignoreCase = true)) {
+            // گزینه اول: تم‌ها (Themes)
+            if (searchQuery.isEmpty() || "Themes Appearance".contains(searchQuery, ignoreCase = true)) {
                 item {
-                    IosSectionHeader(title = "PRESET CONFIGURATION PROFILES", scaleFactor = scaleFactor)
-                    IosGroupCard {
+                    IosSectionHeader(title = "APPEARANCE", scaleFactor = scaleFactor, color = secondaryText)
+                    IosGroupCard(cardBg = cardBg) {
+                        IosPresetItem(
+                            icon = Icons.Default.Palette, iconBg = Color(0xFF007AFF),
+                            title = "Themes", subtitle = "Customize application appearance",
+                            isActive = false, onClick = onOpenThemes, scaleFactor = scaleFactor,
+                            textColor = primaryText, subTextColor = secondaryText
+                        )
+                    }
+                }
+            }
+
+            // گزینه‌های فشرده شده (آبی و قرمز)
+            if (searchQuery.isEmpty() || "Preset Profiles Custom Manual Tweaks Connection".contains(searchQuery, ignoreCase = true)) {
+                item {
+                    IosSectionHeader(title = "CONFIGURATION", scaleFactor = scaleFactor, color = secondaryText)
+                    IosGroupCard(cardBg = cardBg) {
                         Column {
+                            // گزینه فشرده بخش آبی (Profiles)
                             IosPresetItem(
-                                icon = Icons.Default.Tune,
-                                iconBg = Color(0xFF8E8E93),
-                                title = "Custom Manual Tweaks",
-                                subtitle = "Your own independent manual configuration",
-                                isActive = config.presetId == "custom",
-                                onClick = { 
-                                    onApplyPreset("custom")
-                                    onShowToast("Applied manual configuration", false)
-                                },
-                                scaleFactor = scaleFactor
+                                icon = Icons.Default.Tune, iconBg = Color(0xFF5856D6),
+                                title = "Preset Profiles", subtitle = "Select configuration presets",
+                                isActive = false, onClick = { showProfilesSheet = true },
+                                scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
                             )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                            
+                            HorizontalDivider(color = dividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = 64.dp))
+                            
+                            // گزینه فشرده بخش قرمز (Connection & Routing)
                             IosPresetItem(
-                                icon = Icons.Default.Lock,
-                                iconBg = Color(0xFF5856D6),
-                                title = "Bypass UDP / TLS",
-                                subtitle = "MASQUE + H2 Fallback + Packet Fragmentation",
-                                isActive = config.presetId == "bypass_udp",
-                                onClick = { 
-                                    onApplyPreset("bypass_udp")
-                                    onShowToast("Applied UDP/TLS Bypass preset", false)
-                                },
-                                scaleFactor = scaleFactor
-                            )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosPresetItem(
-                                icon = Icons.Default.Shield,
-                                iconBg = Color(0xFF007AFF),
-                                title = "Ironclad Stealth",
-                                subtitle = "MASQUE + GFW Noise + Ironclad Probe Scan",
-                                isActive = config.presetId == "ironclad_stealth",
-                                onClick = { 
-                                    onApplyPreset("ironclad_stealth")
-                                    onShowToast("Applied Ironclad Stealth preset", false)
-                                },
-                                scaleFactor = scaleFactor
-                            )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosPresetItem(
-                                icon = Icons.Default.Bolt,
-                                iconBg = Color(0xFFFF9500),
-                                title = "Turbo Speed",
-                                subtitle = "WireGuard + Balanced Noise + Turbo Scan",
-                                isActive = config.presetId == "turbo_wg",
-                                onClick = { 
-                                    onApplyPreset("turbo_wg")
-                                    onShowToast("Applied Turbo Speed preset", false)
-                                },
-                                scaleFactor = scaleFactor
+                                icon = Icons.Default.Router, iconBg = Color(0xFFFF9500),
+                                title = "Connection & Routing", subtitle = "Engine, Protocols & Transport",
+                                isActive = false, onClick = { showConnectionSheet = true },
+                                scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
                             )
                         }
                     }
                 }
             }
 
-            if (searchQuery.isEmpty() || "Engine Transport Protocol Bypass Obfuscation Speed Strategy Network Stack Whole Device Split Tunneling Domain Routing VPN Tunnel Mode SOCKS5 HTTP Host Port MTU Keepalive Peer".contains(searchQuery, ignoreCase = true)) {
+            // سایر گزینه‌ها
+            if (searchQuery.isEmpty() || "Logs About".contains(searchQuery, ignoreCase = true)) {
                 item {
-                    IosSectionHeader(title = "CONNECTION & ROUTING", scaleFactor = scaleFactor)
-                    IosGroupCard {
+                    IosSectionHeader(title = "APP SETTINGS & INFO", scaleFactor = scaleFactor, color = secondaryText)
+                    IosGroupCard(cardBg = cardBg) {
                         Column {
-                            IosPickerRow(
-                                icon = Icons.Default.VpnLock,
-                                iconBg = Color(0xFF34C759),
-                                title = "Connection Mode",
-                                value = if (config.connectionMode == ConnectionMode.TUNNEL) "Tunnel" else "Proxy Only",
-                                options = listOf("Tunnel", "Proxy Only"),
-                                onOptionSelected = { index -> 
-                                    onUpdateConfig(config.copy(connectionMode = if (index == 0) ConnectionMode.TUNNEL else ConnectionMode.PROXY_ONLY))
-                                },
-                                scaleFactor = scaleFactor
+                            IosPresetItem(
+                                icon = Icons.Default.Code, iconBg = Color(0xFF34C759),
+                                title = "Application Logs", subtitle = "View connection and system logs",
+                                isActive = false, onClick = onOpenLogs, scaleFactor = scaleFactor,
+                                textColor = primaryText, subTextColor = secondaryText
                             )
-                            if (config.connectionMode == ConnectionMode.TUNNEL) {
-                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                                IosPickerRow(
-                                    icon = Icons.Default.VpnLock,
-                                    iconBg = Color(0xFF5856D6),
-                                    title = "Tunnel Engine",
-                                    value = config.tunnelEngine.displayName,
-                                    options = TunnelEngine.entries.map { it.displayName },
-                                    onOptionSelected = { index -> onUpdateTunnelEngine(TunnelEngine.entries[index]) },
-                                    scaleFactor = scaleFactor
-                                )
-                            }
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosPickerRow(
-                                icon = Icons.Default.VpnLock,
-                                iconBg = Color(0xFF007AFF),
-                                title = "Transport Protocol",
-                                value = config.protocol.displayName,
-                                options = AetherProtocol.entries.map { it.displayName },
-                                onOptionSelected = { index -> onUpdateConfig(config.copy(protocol = AetherProtocol.entries[index])) },
-                                scaleFactor = scaleFactor
+                            HorizontalDivider(color = dividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = 64.dp))
+                            IosPresetItem(
+                                icon = Icons.Default.Info, iconBg = Color(0xFF8E8E93),
+                                title = "About Us", subtitle = "Version, license, and information",
+                                isActive = false, onClick = onOpenAbout, scaleFactor = scaleFactor,
+                                textColor = primaryText, subTextColor = secondaryText
                             )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            if (config.protocol == AetherProtocol.MASQUE) {
-                                IosSwitchRow(
-                                    icon = Icons.Default.Http,
-                                    iconBg = Color(0xFF007AFF),
-                                    title = "HTTP/2 Fallback Mode",
-                                    subtitle = "Force MASQUE over TCP/TLS instead of QUIC",
-                                    checked = config.h2Mode,
-                                    onCheckedChange = { onUpdateConfig(config.copy(h2Mode = it)) },
-                                    testTag = "switch_h2_mode",
-                                    scaleFactor = scaleFactor
-                                )
-                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                                IosSwitchRow(
-                                    icon = Icons.Default.VerticalSplit,
-                                    iconBg = Color(0xFF5856D6),
-                                    title = "Packet Fragmentation",
-                                    subtitle = "Bypass SNI filters (H2 mode only)",
-                                    checked = config.h2Fragment,
-                                    onCheckedChange = { onUpdateConfig(config.copy(h2Fragment = it)) },
-                                    testTag = "switch_fragment",
-                                    scaleFactor = scaleFactor
-                                )
-                                AnimatedVisibility(visible = config.h2Fragment) {
-                                    Column(modifier = Modifier.background(IosGroupBackground.copy(alpha = 0.3f))) {
-                                        IosInputFieldRow(
-                                            icon = Icons.Default.Straighten,
-                                            iconBg = Color(0xFF8E8E93),
-                                            label = "Fragment Size (Bytes)",
-                                            value = config.fragmentSize,
-                                            onValueChange = { onUpdateConfig(config.copy(fragmentSize = it)) },
-                                            placeholder = "16-32",
-                                            testTag = "fragment_size_input",
-                                            scaleFactor = scaleFactor
-                                        )
-                                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                                        IosInputFieldRow(
-                                            icon = Icons.Default.Timer,
-                                            iconBg = Color(0xFF8E8E93),
-                                            label = "Fragment Delay (ms)",
-                                            value = config.fragmentDelay,
-                                            onValueChange = { onUpdateConfig(config.copy(fragmentDelay = it)) },
-                                            placeholder = "2-10",
-                                            testTag = "fragment_delay_input",
-                                            scaleFactor = scaleFactor
-                                        )
-                                    }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ====== پاپ آپ پروفایل‌ها (بخش آبی سابق) ======
+        if (showProfilesSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showProfilesSheet = false },
+                containerColor = bgColor,
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ) {
+                Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                    Text(
+                        text = "Preset Profiles",
+                        color = primaryText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        textAlign = TextAlign.Center
+                    )
+                    IosPresetItem(
+                        icon = Icons.Default.Tune, iconBg = Color(0xFF8E8E93),
+                        title = "Custom Manual Tweaks", subtitle = "Your own independent manual configuration",
+                        isActive = config.presetId == "custom",
+                        onClick = { onApplyPreset("custom"); showProfilesSheet = false; onShowToast("Applied manual configuration", false) },
+                        scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                    )
+                    IosPresetItem(
+                        icon = Icons.Default.Lock, iconBg = Color(0xFF5856D6),
+                        title = "Bypass UDP / TLS", subtitle = "MASQUE + H2 Fallback + Fragmentation",
+                        isActive = config.presetId == "bypass_udp",
+                        onClick = { onApplyPreset("bypass_udp"); showProfilesSheet = false; onShowToast("Applied UDP/TLS Bypass", false) },
+                        scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                    )
+                    IosPresetItem(
+                        icon = Icons.Default.Shield, iconBg = Color(0xFF007AFF),
+                        title = "Ironclad Stealth", subtitle = "MASQUE + GFW Noise + Probe Scan",
+                        isActive = config.presetId == "ironclad_stealth",
+                        onClick = { onApplyPreset("ironclad_stealth"); showProfilesSheet = false; onShowToast("Applied Ironclad Stealth", false) },
+                        scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                    )
+                    IosPresetItem(
+                        icon = Icons.Default.Bolt, iconBg = Color(0xFFFF9500),
+                        title = "Turbo Speed", subtitle = "WireGuard + Balanced Noise + Turbo Scan",
+                        isActive = config.presetId == "turbo_wg",
+                        onClick = { onApplyPreset("turbo_wg"); showProfilesSheet = false; onShowToast("Applied Turbo Speed", false) },
+                        scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                    )
+                }
+            }
+        }
+
+        // ====== پاپ آپ تنظیمات اتصال (بخش قرمز سابق) ======
+        if (showConnectionSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showConnectionSheet = false },
+                containerColor = bgColor,
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ) {
+                LazyColumn(modifier = Modifier.padding(bottom = 24.dp)) {
+                    item {
+                        Text(
+                            text = "Connection & Routing",
+                            color = primaryText,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    item {
+                        IosPickerRow(
+                            icon = Icons.Default.VpnLock, iconBg = Color(0xFF34C759),
+                            title = "Connection Mode", value = if (config.connectionMode == ConnectionMode.TUNNEL) "Tunnel" else "Proxy Only",
+                            options = listOf("Tunnel", "Proxy Only"),
+                            onOptionSelected = { index -> onUpdateConfig(config.copy(connectionMode = if (index == 0) ConnectionMode.TUNNEL else ConnectionMode.PROXY_ONLY)) },
+                            scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText, sheetBg = groupBg
+                        )
+                    }
+                    if (config.connectionMode == ConnectionMode.TUNNEL) {
+                        item {
+                            IosPickerRow(
+                                icon = Icons.Default.VpnLock, iconBg = Color(0xFF5856D6),
+                                title = "Tunnel Engine", value = config.tunnelEngine.displayName,
+                                options = TunnelEngine.entries.map { it.displayName },
+                                onOptionSelected = { index -> onUpdateTunnelEngine(TunnelEngine.entries[index]) },
+                                scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText, sheetBg = groupBg
+                            )
+                        }
+                    }
+                    item {
+                        IosPickerRow(
+                            icon = Icons.Default.VpnLock, iconBg = Color(0xFF007AFF),
+                            title = "Transport Protocol", value = config.protocol.displayName,
+                            options = AetherProtocol.entries.map { it.displayName },
+                            onOptionSelected = { index -> onUpdateConfig(config.copy(protocol = AetherProtocol.entries[index])) },
+                            scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText, sheetBg = groupBg
+                        )
+                    }
+                    
+                    if (config.protocol == AetherProtocol.MASQUE) {
+                        item {
+                            IosSwitchRow(
+                                icon = Icons.Default.Http, iconBg = Color(0xFF007AFF),
+                                title = "HTTP/2 Fallback Mode", subtitle = "Force MASQUE over TCP/TLS instead of QUIC",
+                                checked = config.h2Mode, onCheckedChange = { onUpdateConfig(config.copy(h2Mode = it)) },
+                                testTag = "switch_h2_mode", scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                            )
+                        }
+                        item {
+                            IosSwitchRow(
+                                icon = Icons.Default.VerticalSplit, iconBg = Color(0xFF5856D6),
+                                title = "Packet Fragmentation", subtitle = "Bypass SNI filters (H2 mode only)",
+                                checked = config.h2Fragment, onCheckedChange = { onUpdateConfig(config.copy(h2Fragment = it)) },
+                                testTag = "switch_fragment", scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                            )
+                        }
+                        item {
+                            AnimatedVisibility(
+                                visible = config.h2Fragment,
+                                enter = expandVertically(animationSpec = tween(300)),
+                                exit = shrinkVertically(animationSpec = tween(300))
+                            ) {
+                                Column(modifier = Modifier.background(groupBg.copy(alpha = 0.3f))) {
+                                    IosInputFieldRow(
+                                        icon = Icons.Default.Straighten, iconBg = Color(0xFF8E8E93),
+                                        label = "Fragment Size", value = config.fragmentSize,
+                                        onValueChange = { onUpdateConfig(config.copy(fragmentSize = it)) },
+                                        placeholder = "16-32", testTag = "fragment_size_input", scaleFactor = scaleFactor,
+                                        textColor = primaryText, subTextColor = secondaryText, inputBg = cardBg
+                                    )
+                                    IosInputFieldRow(
+                                        icon = Icons.Default.Timer, iconBg = Color(0xFF8E8E93),
+                                        label = "Fragment Delay (ms)", value = config.fragmentDelay,
+                                        onValueChange = { onUpdateConfig(config.copy(fragmentDelay = it)) },
+                                        placeholder = "2-10", testTag = "fragment_delay_input", scaleFactor = scaleFactor,
+                                        textColor = primaryText, subTextColor = secondaryText, inputBg = cardBg
+                                    )
                                 }
-                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                             }
-                            IosSwitchRow(
-                                icon = Icons.AutoMirrored.Filled.Rule,
-                                iconBg = Color(0xFF8E8E93),
-                                title = "Skip Data Plane Check",
-                                subtitle = "Trust gateway after handshake only",
-                                checked = config.noDataCheck,
-                                onCheckedChange = { onUpdateConfig(config.copy(noDataCheck = it)) },
-                                testTag = "switch_no_data_check",
-                                scaleFactor = scaleFactor
-                            )
-                            HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                            IosSwitchRow(
-                                icon = Icons.Default.FlashOn,
-                                iconBg = Color(0xFFFF9500),
-                                title = "Quick Gateway Reconnect",
-                                subtitle = "Reuse last working endpoint on start",
-                                checked = config.quickReconnect,
-                                onCheckedChange = { onUpdateConfig(config.copy(quickReconnect = it)) },
-                                testTag = "switch_quick_reconnect",
-                                scaleFactor = scaleFactor
-                            )
                         }
                     }
-                }
-            }
-
-            // بخش اضافه شده برای تم، لاگ و درباره برنامه
-            item {
-                IosSectionHeader(title = "APP SETTINGS & INFO", scaleFactor = scaleFactor)
-                IosGroupCard {
-                    Column {
-                        IosPresetItem(
-                            icon = Icons.Default.Palette,
-                            iconBg = Color(0xFF007AFF),
-                            title = "Themes",
-                            subtitle = "Customize application appearance",
-                            isActive = false,
-                            onClick = onOpenThemes,
-                            scaleFactor = scaleFactor
-                        )
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                        IosPresetItem(
-                            icon = Icons.Default.Code,
-                            iconBg = Color(0xFF34C759),
-                            title = "Application Logs",
-                            subtitle = "View connection and system logs",
-                            isActive = false,
-                            onClick = onOpenLogs,
-                            scaleFactor = scaleFactor
-                        )
-                        HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
-                        IosPresetItem(
-                            icon = Icons.Default.Info,
-                            iconBg = Color(0xFFFF9500),
-                            title = "About Us",
-                            subtitle = "Version, license, and information",
-                            isActive = false,
-                            onClick = onOpenAbout,
-                            scaleFactor = scaleFactor
+                    item {
+                        IosSwitchRow(
+                            icon = Icons.AutoMirrored.Filled.Rule, iconBg = Color(0xFF8E8E93),
+                            title = "Skip Data Plane Check", subtitle = "Trust gateway after handshake only",
+                            checked = config.noDataCheck, onCheckedChange = { onUpdateConfig(config.copy(noDataCheck = it)) },
+                            testTag = "switch_no_data_check", scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
                         )
                     }
                 }
@@ -388,23 +405,24 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun IosSectionHeader(title: String, scaleFactor: Float) {
+private fun IosSectionHeader(title: String, scaleFactor: Float, color: Color) {
     Text(
         text = title,
-        style = MaterialTheme.typography.labelSmall,
-        color = IosSecondaryLabel,
-        fontSize = (12 * scaleFactor).sp,
+        style = MaterialTheme.typography.labelMedium,
+        color = color,
+        fontSize = (13 * scaleFactor).sp,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, top = 8.dp)
     )
 }
 
 @Composable
-private fun IosGroupCard(content: @Composable () -> Unit) {
+private fun IosGroupCard(cardBg: Color, content: @Composable () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = IosCardBackground
+        shape = RoundedCornerShape(20.dp),
+        color = cardBg,
+        shadowElevation = 4.dp
     ) {
         content()
     }
@@ -412,84 +430,118 @@ private fun IosGroupCard(content: @Composable () -> Unit) {
 
 @Composable
 private fun IosPresetItem(
-    icon: ImageVector,
-    iconBg: Color,
-    title: String,
-    subtitle: String,
-    isActive: Boolean,
-    onClick: () -> Unit,
-    scaleFactor: Float
+    icon: ImageVector, iconBg: Color, title: String, subtitle: String,
+    isActive: Boolean, onClick: () -> Unit, scaleFactor: Float,
+    textColor: Color, subTextColor: Color
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size((32 * scaleFactor).dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size((34 * scaleFactor).dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(iconBg),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size((18 * scaleFactor).dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size((20 * scaleFactor).dp))
         }
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = (14 * scaleFactor).sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = IosSecondaryLabel, fontSize = (11 * scaleFactor).sp)
+            Text(title, color = textColor, fontSize = (15 * scaleFactor).sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, color = subTextColor, fontSize = (12 * scaleFactor).sp)
         }
         if (isActive) {
-            Icon(Icons.Default.Check, null, tint = IosActiveBlue, modifier = Modifier.size((20 * scaleFactor).dp))
+            Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size((22 * scaleFactor).dp))
+        } else {
+            Icon(Icons.Default.ChevronRight, null, tint = subTextColor.copy(alpha = 0.5f), modifier = Modifier.size((18 * scaleFactor).dp))
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun IosPickerRow(
-    icon: ImageVector,
-    iconBg: Color,
-    title: String,
-    value: String,
-    options: List<String>,
-    onOptionSelected: (Int) -> Unit,
-    scaleFactor: Float
+    icon: ImageVector, iconBg: Color, title: String, value: String,
+    options: List<String>, onOptionSelected: (Int) -> Unit, scaleFactor: Float,
+    textColor: Color, subTextColor: Color, sheetBg: Color
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
+    var showSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showSheet = true }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size((34 * scaleFactor).dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(iconBg),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size((32 * scaleFactor).dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(iconBg),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = Color.White, modifier = Modifier.size((18 * scaleFactor).dp))
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(title, color = Color.White, fontSize = (14 * scaleFactor).sp, modifier = Modifier.weight(1f))
-            Text(value, color = IosSecondaryLabel, fontSize = (13 * scaleFactor).sp)
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(Icons.Default.ChevronRight, null, tint = IosSecondaryLabel, modifier = Modifier.size((16 * scaleFactor).dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size((20 * scaleFactor).dp))
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { index, option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        expanded = false
-                        onOptionSelected(index)
-                    }
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(title, color = textColor, fontSize = (15 * scaleFactor).sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(value, color = subTextColor, fontSize = (14 * scaleFactor).sp)
+        Spacer(modifier = Modifier.width(6.dp))
+        Icon(Icons.Default.ExpandMore, null, tint = subTextColor, modifier = Modifier.size((18 * scaleFactor).dp))
+    }
+
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = sheetState,
+            containerColor = sheetBg
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp, top = 8.dp)
+            ) {
+                Text(
+                    text = "Select $title",
+                    color = textColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    textAlign = TextAlign.Center
                 )
+                
+                options.forEachIndexed { index, option ->
+                    val isSelected = value == option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onOptionSelected(index)
+                                showSheet = false
+                            }
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = option,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else textColor,
+                            fontSize = 16.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                        if (isSelected) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
             }
         }
     }
@@ -497,97 +549,82 @@ private fun IosPickerRow(
 
 @Composable
 private fun IosSwitchRow(
-    icon: ImageVector,
-    iconBg: Color,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    testTag: String,
-    scaleFactor: Float
+    icon: ImageVector, iconBg: Color, title: String, subtitle: String,
+    checked: Boolean, onCheckedChange: (Boolean) -> Unit, testTag: String, scaleFactor: Float,
+    textColor: Color, subTextColor: Color
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size((32 * scaleFactor).dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size((34 * scaleFactor).dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(iconBg),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size((18 * scaleFactor).dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size((20 * scaleFactor).dp))
         }
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = (14 * scaleFactor).sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = IosSecondaryLabel, fontSize = (11 * scaleFactor).sp)
+            Text(title, color = textColor, fontSize = (15 * scaleFactor).sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, color = subTextColor, fontSize = (12 * scaleFactor).sp)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = Modifier.testTag(testTag),
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = IosActiveSwitchGreen,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = IosInactiveSwitchTrack
-            )
+            modifier = Modifier.testTag(testTag)
         )
     }
 }
 
 @Composable
 private fun IosInputFieldRow(
-    icon: ImageVector,
-    iconBg: Color,
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    testTag: String,
-    scaleFactor: Float
+    icon: ImageVector, iconBg: Color, label: String, value: String,
+    onValueChange: (String) -> Unit, placeholder: String, testTag: String, scaleFactor: Float,
+    textColor: Color, subTextColor: Color, inputBg: Color
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size((32 * scaleFactor).dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size((34 * scaleFactor).dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(iconBg),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size((18 * scaleFactor).dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size((20 * scaleFactor).dp))
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(label, color = Color.White, fontSize = (14 * scaleFactor).sp, modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(label, color = textColor, fontSize = (15 * scaleFactor).sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         Spacer(modifier = Modifier.width(8.dp))
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier
                 .width(80.dp)
-                .height(32.dp)
-                .background(IosGroupBackground, RoundedCornerShape(8.dp))
-                .border(1.dp, IosDividerColor, RoundedCornerShape(8.dp))
+                .height(34.dp)
+                .background(inputBg, RoundedCornerShape(8.dp))
+                .border(1.dp, subTextColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                 .testTag(testTag),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White, fontSize = (13 * scaleFactor).sp, textAlign = TextAlign.Center),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor, fontSize = (14 * scaleFactor).sp, textAlign = TextAlign.Center),
             singleLine = true,
-            cursorBrush = SolidColor(IosActiveBlue),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (value.isEmpty()) {
-                        Text(placeholder, color = IosSecondaryLabel.copy(alpha = 0.5f), fontSize = (12 * scaleFactor).sp, textAlign = TextAlign.Center)
+                        Text(placeholder, color = subTextColor.copy(alpha = 0.5f), fontSize = (13 * scaleFactor).sp, textAlign = TextAlign.Center)
                     }
                     innerTextField()
                 }
