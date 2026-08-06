@@ -111,8 +111,8 @@ The project uses **GitHub Actions** for automated Multi-APK releases. To set up 
 
 Stay updated and get support through our official channels:
 
-- 📢 **Telegram:** [PowerSigma](https://t.me/PowerSigma)
-- 👨‍💻 **Developer:** [@immaghzbad](https://github.com/immaghzbad)
+- 📢 **Telegram:**
+- 👨‍💻 **Developer:** 
 
 ## ⚖️ License
 
