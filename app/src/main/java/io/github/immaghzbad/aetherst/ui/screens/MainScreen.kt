@@ -18,6 +18,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,22 +26,36 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -57,21 +72,18 @@ import io.github.immaghzbad.aetherst.ui.AetherViewModel
 import io.github.immaghzbad.aetherst.ui.OnboardingViewModel
 import io.github.immaghzbad.aetherst.ui.components.IosToast
 import io.github.immaghzbad.aetherst.ui.theme.ThemeSelectionScreen
+import kotlin.math.roundToInt
 
-// ---- رنگ‌های پیش‌فرض Warden (بر اساس تم فایل HTML شما) ----
-private val WardenBg = Color(0xFFF0F4FF)
-private val WardenBgSub = Color(0xFFE8EEFF)
-private val WardenCard = Color(0xFFFFFFFF)
-private val WardenCardBorder = Color(0xFFDDEAFF)
-private val WardenAccent = Color(0xFF2B82D4)
-private val WardenAccentFg = Color(0xFFFFFFFF)
-private val WardenText = Color(0xFF0D1B2A)
-private val WardenTextMuted = Color(0xFF7A9CC2)
-private val WardenSuccess = Color(0xFF22C55E)
-private val WardenInputBg = Color(0xFFF5F8FF)
-private val WardenInputBorder = Color(0xFFC8DCFF)
+// ثابت‌های ثابت‌سازی رابط کاربری iOS/Material
+private val IosNavBackground = Color(0xFF1C1C1E)
 private val IosNavActiveBlue = Color(0xFF007AFF)
 private val IosNavInactiveGrey = Color(0xFF8E8E93)
+private val BarContentHeight = 80.dp
+private val ButtonSize = 56.dp
+private val ButtonCenterY = 22.dp
+private val CircleGap = 6.dp
+private val BarTopY = 20.dp
+private val ItemBottomPadding = 10.dp
 
 private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
     is ComponentActivity -> this
@@ -122,7 +134,7 @@ fun MainScreen(viewModel: AetherViewModel) {
 
     SideEffect {
         activity?.enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.BLACK),
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -130,76 +142,74 @@ fun MainScreen(viewModel: AetherViewModel) {
         }
     }
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val screenWidth = this.maxWidth
-            val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenWidth = this.maxWidth
+        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
 
-            if (!isOnboardingComplete) {
-                val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-                    val intent = VpnService.prepare(context)
-                    if (intent == null) onboardingViewModel.moveToNextStep()
-                }
-                val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-                    if (isGranted) onboardingViewModel.moveToNextStep() else onboardingViewModel.showNotificationError()
-                }
-
-                OnboardingScreen(
-                    state = onboardingState,
-                    onGetStarted = { onboardingViewModel.moveToNextStep() },
-                    onRetryRegistration = { onboardingViewModel.startProtocolTests() },
-                    onCancelRegistration = { onboardingViewModel.cancelTests() },
-                    onUpdateScanMode = { onboardingViewModel.updateScanMode(it) },
-                    onRequestVpnPermission = {
-                        val intent = VpnService.prepare(context)
-                        if (intent != null) vpnLauncher.launch(intent) else onboardingViewModel.moveToNextStep()
-                    },
-                    onRequestNotificationPermission = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            onboardingViewModel.moveToNextStep()
-                        }
-                    },
-                    onRequestBatteryOptimization = {
-                        if (context.isIgnoringBatteryOptimizations()) {
-                            onboardingViewModel.moveToNextStep()
-                        } else {
-                            runCatching {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = "package:${context.packageName}".toUri()
-                                }
-                                context.startActivity(intent)
-                            }.onFailure {
-                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                context.startActivity(intent)
-                            }
-                        }
-                    },
-                    onFinish = onboardingViewModel::moveToNextStep
-                )
-            } else if (crashLog != null) {
-                CrashReportScreen(
-                    crashLog = crashLog!!,
-                    onRestart = { viewModel.clearCrashLog() },
-                    onShowToast = { viewModel.showToast(it) }
-                )
-            } else if (updateInfo != null) {
-                UpdateScreen(
-                    info = updateInfo!!,
-                    onDismiss = { viewModel.dismissUpdate() },
-                    scaleFactor = scaleFactor
-                )
-            } else {
-                DashboardContent(viewModel)
+        if (!isOnboardingComplete) {
+            val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+                val intent = VpnService.prepare(context)
+                if (intent == null) onboardingViewModel.moveToNextStep()
+            }
+            val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+                if (isGranted) onboardingViewModel.moveToNextStep() else onboardingViewModel.showNotificationError()
             }
 
-            IosToast(
-                message = toastState?.message,
-                isError = toastState?.isError ?: false,
+            OnboardingScreen(
+                state = onboardingState,
+                onGetStarted = { onboardingViewModel.moveToNextStep() },
+                onRetryRegistration = { onboardingViewModel.startProtocolTests() },
+                onCancelRegistration = { onboardingViewModel.cancelTests() },
+                onUpdateScanMode = { onboardingViewModel.updateScanMode(it) },
+                onRequestVpnPermission = {
+                    val intent = VpnService.prepare(context)
+                    if (intent != null) vpnLauncher.launch(intent) else onboardingViewModel.moveToNextStep()
+                },
+                onRequestNotificationPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        onboardingViewModel.moveToNextStep()
+                    }
+                },
+                onRequestBatteryOptimization = {
+                    if (context.isIgnoringBatteryOptimizations()) {
+                        onboardingViewModel.moveToNextStep()
+                    } else {
+                        runCatching {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = "package:${context.packageName}".toUri()
+                            }
+                            context.startActivity(intent)
+                        }.onFailure {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            context.startActivity(intent)
+                        }
+                    }
+                },
+                onFinish = onboardingViewModel::moveToNextStep
+            )
+        } else if (crashLog != null) {
+            CrashReportScreen(
+                crashLog = crashLog!!,
+                onRestart = { viewModel.clearCrashLog() },
+                onShowToast = { viewModel.showToast(it) }
+            )
+        } else if (updateInfo != null) {
+            UpdateScreen(
+                info = updateInfo!!,
+                onDismiss = { viewModel.dismissUpdate() },
                 scaleFactor = scaleFactor
             )
+        } else {
+            DashboardContent(viewModel)
         }
+
+        IosToast(
+            message = toastState?.message,
+            isError = toastState?.isError ?: false,
+            scaleFactor = scaleFactor
+        )
     }
 }
 
@@ -209,7 +219,8 @@ private fun DashboardContent(viewModel: AetherViewModel) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSplitTunneling by remember { mutableStateOf(false) }
-    
+    var showRoutingRules by remember { mutableStateOf(false) }
+
     val config by viewModel.config.collectAsStateWithLifecycle()
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val elapsedSeconds by viewModel.elapsedSeconds.collectAsStateWithLifecycle()
@@ -223,9 +234,6 @@ private fun DashboardContent(viewModel: AetherViewModel) {
     val isOptimizingMtu by viewModel.isOptimizingMtu.collectAsStateWithLifecycle()
     val isWaitingForLoginCode by viewModel.isWaitingForLoginCode.collectAsStateWithLifecycle()
     val scrollToZeroTrust by viewModel.scrollToZeroTrust.collectAsStateWithLifecycle()
-    var showRoutingRules by remember { mutableStateOf(false) }
-
-    val isConnected = connectionStatus.toString().contains("Connected", ignoreCase = true) 
 
     LaunchedEffect(scrollToZeroTrust) {
         if (scrollToZeroTrust) {
@@ -264,178 +272,125 @@ private fun DashboardContent(viewModel: AetherViewModel) {
         }
     }
 
+    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val saveableStateHolder = rememberSaveableStateHolder()
+    val bottomPadding = BarContentHeight + navBarHeight
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(WardenBg)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidth = this.maxWidth
         val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
+        val isSubScreenOpen = showSplitTunneling || showRoutingRules
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            val targetScreen = if (showRoutingRules) 100 else if (showSplitTunneling) 99 else selectedTab
             
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(WardenCard)
-                    .border(1.dp, WardenCardBorder)
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                    .statusBarsPadding(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(WardenAccent),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Default.Lock, contentDescription = "Logo", tint = WardenAccentFg, modifier = Modifier.size(15.dp))
+            AnimatedContent(
+                targetState = targetScreen,
+                transitionSpec = {
+                    val duration = 300
+                    if (targetState > initialState) {
+                        (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it } + fadeIn(animationSpec = tween(duration)))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it / 2 } + fadeOut(animationSpec = tween(duration)))
+                    } else {
+                        (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it } + fadeIn(animationSpec = tween(duration)))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it / 2 } + fadeOut(animationSpec = tween(duration)))
                     }
-                    Text(text = "Warden", color = WardenText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Row(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (isConnected) WardenSuccess.copy(alpha = 0.1f) else WardenInputBg)
-                        .border(1.dp, if (isConnected) WardenSuccess.copy(alpha = 0.3f) else WardenInputBorder, CircleShape)
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (isConnected) WardenSuccess else WardenTextMuted)
-                    )
-                    Text(
-                        text = if (isConnected) "متصل" else "قطع",
-                        color = if (isConnected) WardenSuccess else WardenTextMuted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            Box(modifier = Modifier.weight(1f).background(WardenBgSub)) {
-                val targetScreen = if (showRoutingRules) 100 else if (showSplitTunneling) 99 else selectedTab
-                AnimatedContent(
-                    targetState = targetScreen,
-                    transitionSpec = {
-                        val duration = 350
-                        if (targetState > initialState) {
-                            (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it } + fadeIn(animationSpec = tween(duration)))
-                                .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it / 2 } + fadeOut(animationSpec = tween(duration)))
-                        } else {
-                            (slideInHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { -it } + fadeIn(animationSpec = tween(duration)))
-                                .togetherWith(slideOutHorizontally(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { it / 2 } + fadeOut(animationSpec = tween(duration)))
-                        }
-                    },
-                    label = "screen_transition"
-                ) { tab ->
-                    saveableStateHolder.SaveableStateProvider(tab) {
-                        when (tab) {
-                            0 -> DashboardScreen(
-                                config = config,
-                                connectionStatus = connectionStatus,
-                                elapsedSeconds = elapsedSeconds,
-                                sessionTraffic = sessionTraffic,
-                                ipInfo = ipInfo,
-                                pingState = pingState,
-                                onToggleVpn = { handleVpnToggle() },
-                                onUpdateProtocol = { proto -> viewModel.updateConfig(config.copy(protocol = proto)) },
-                                onOpenSettings = { selectedTab = 1 },
-                                onOpenThemes = { selectedTab = 4 },
-                                onRefreshIpInfo = { viewModel.refreshIpInfo() },
-                                onRefreshPing = { viewModel.refreshPing() },
-                                onShowToast = { msg, err -> viewModel.showToast(msg, err) },
-                                bottomContentPadding = 0.dp
-                            )
-                            1 -> SettingsScreen(
-                                config = config,
-                                isBatteryOptimized = isBatteryOptimized,
-                                onBack = { selectedTab = 0 },
-                                scrollToSection = scrollToZeroTrust,
-                                onSectionScrolled = { viewModel.onZeroTrustScrolled() },
-                                onUpdateConfig = { viewModel.updateConfig(it) },
-                                onUpdateTunnelEngine = { viewModel.updateTunnelEngine(it) },
-                                onApplyPreset = { preset -> viewModel.applyPreset(preset) },
-                                onOpenSplitTunneling = { showSplitTunneling = true },
-                                onOpenRoutingRules = { showRoutingRules = true },
-                                onResetAll = { viewModel.resetAllSettings() },
-                                onExportBackup = { viewModel.exportFullBackup(context) },
-                                onImportBackup = { viewModel.importFullBackup(it, context) },
-                                onOptimizeMtu = { viewModel.optimizeMtu() },
-                                isOptimizingMtu = isOptimizingMtu,
-                                onRequestBatteryOptimization = {
-                                    runCatching {
-                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                            data = "package:${context.packageName}".toUri()
-                                        }
-                                        context.startActivity(intent)
-                                    }.onFailure {
-                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                        context.startActivity(intent)
+                },
+                label = "screen_transition"
+            ) { tab ->
+                saveableStateHolder.SaveableStateProvider(tab) {
+                    when (tab) {
+                        0 -> DashboardScreen(
+                            config = config,
+                            connectionStatus = connectionStatus,
+                            elapsedSeconds = elapsedSeconds,
+                            sessionTraffic = sessionTraffic,
+                            ipInfo = ipInfo,
+                            pingState = pingState,
+                            onToggleVpn = { handleVpnToggle() },
+                            onUpdateProtocol = { proto -> viewModel.updateConfig(config.copy(protocol = proto)) },
+                            onOpenSettings = { selectedTab = 1 },
+                            onOpenThemes = { selectedTab = 4 },
+                            onRefreshIpInfo = { viewModel.refreshIpInfo() },
+                            onRefreshPing = { viewModel.refreshPing() },
+                            onShowToast = { msg, err -> viewModel.showToast(msg, err) },
+                            bottomContentPadding = bottomPadding
+                        )
+                        1 -> SettingsScreen(
+                            config = config,
+                            isBatteryOptimized = isBatteryOptimized,
+                            onBack = { selectedTab = 0 },
+                            scrollToSection = scrollToZeroTrust,
+                            onSectionScrolled = { viewModel.onZeroTrustScrolled() },
+                            onUpdateConfig = { viewModel.updateConfig(it) },
+                            onUpdateTunnelEngine = { viewModel.updateTunnelEngine(it) },
+                            onApplyPreset = { preset -> viewModel.applyPreset(preset) },
+                            onOpenSplitTunneling = { showSplitTunneling = true },
+                            onOpenRoutingRules = { showRoutingRules = true },
+                            onResetAll = { viewModel.resetAllSettings() },
+                            onExportBackup = { viewModel.exportFullBackup(context) },
+                            onImportBackup = { viewModel.importFullBackup(it, context) },
+                            onOptimizeMtu = { viewModel.optimizeMtu() },
+                            isOptimizingMtu = isOptimizingMtu,
+                            onRequestBatteryOptimization = {
+                                runCatching {
+                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                        data = "package:${context.packageName}".toUri()
                                     }
-                                },
-                                onShowToast = { msg, err -> viewModel.showToast(msg, err) },
-                                bottomContentPadding = 0.dp
-                            )
-                            4 -> ThemeSelectionScreen(onBack = { selectedTab = 0 })
-                            2 -> LogsScreen(viewModel = viewModel, onShowToast = { msg, err -> viewModel.showToast(msg, err) }, bottomContentPadding = 0.dp)
-                            3 -> AboutUsScreen(bottomContentPadding = 0.dp)
-                            99 -> SplitTunnelingScreen(
-                                apps = installedApps,
-                                excludedPackages = config.excludedPackages,
-                                blockedPackages = config.blockedPackages,
-                                onUpdateMode = { pkg, mode -> viewModel.updateAppSplitTunnelingMode(pkg, mode) },
-                                onBack = { showSplitTunneling = false },
-                                scaleFactor = scaleFactor
-                            )
-                            100 -> RoutingRulesScreen(
-                                rules = config.routingRules,
-                                importConflictRules = importConflictRules,
-                                importErrorMessage = importErrorMessage,
-                                onAddRule = { pattern, mode -> viewModel.addRoutingRule(pattern, mode) },
-                                onRemoveRule = { pattern -> viewModel.removeRoutingRule(pattern) },
-                                onUpdateMode = { pattern, mode -> viewModel.updateRoutingRuleMode(pattern, mode) },
-                                onClearAllRules = { viewModel.clearAllRoutingRules() },
-                                onCleanPattern = { viewModel.cleanRoutingPattern(it) },
-                                onValidatePattern = { viewModel.isValidRoutingPattern(it) },
-                                onExportRules = { viewModel.exportRoutingRules(context) },
-                                onImportRules = { viewModel.importRoutingRules(it, context) },
-                                onResolveConflict = { rules, replace -> viewModel.resolveConflict(rules, replace) },
-                                onCancelImport = { viewModel.cancelImport() },
-                                onClearImportError = { viewModel.clearImportError() },
-                                onShowToast = { msg, err -> viewModel.showToast(msg, err) },
-                                onBack = { showRoutingRules = false },
-                                scaleFactor = scaleFactor
-                            )
-                        }
+                                    context.startActivity(intent)
+                                }.onFailure {
+                                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                    context.startActivity(intent)
+                                }
+                            },
+                            onShowToast = { msg, err -> viewModel.showToast(msg, err) },
+                            bottomContentPadding = bottomPadding
+                        )
+                        4 -> ThemeSelectionScreen(onBack = { selectedTab = 0 })
+                        2 -> LogsScreen(viewModel = viewModel, onShowToast = { msg, err -> viewModel.showToast(msg, err) }, bottomContentPadding = bottomPadding)
+                        3 -> AboutUsScreen(bottomContentPadding = bottomPadding)
+                        99 -> SplitTunnelingScreen(
+                            apps = installedApps,
+                            excludedPackages = config.excludedPackages,
+                            blockedPackages = config.blockedPackages,
+                            onUpdateMode = { pkg, mode -> viewModel.updateAppSplitTunnelingMode(pkg, mode) },
+                            onBack = { showSplitTunneling = false },
+                            scaleFactor = scaleFactor
+                        )
+                        100 -> RoutingRulesScreen(
+                            rules = config.routingRules,
+                            importConflictRules = importConflictRules,
+                            importErrorMessage = importErrorMessage,
+                            onAddRule = { pattern, mode -> viewModel.addRoutingRule(pattern, mode) },
+                            onRemoveRule = { pattern -> viewModel.removeRoutingRule(pattern) },
+                            onUpdateMode = { pattern, mode -> viewModel.updateRoutingRuleMode(pattern, mode) },
+                            onClearAllRules = { viewModel.clearAllRoutingRules() },
+                            onCleanPattern = { viewModel.cleanRoutingPattern(it) },
+                            onValidatePattern = { viewModel.isValidRoutingPattern(it) },
+                            onExportRules = { viewModel.exportRoutingRules(context) },
+                            onImportRules = { viewModel.importRoutingRules(it, context) },
+                            onResolveConflict = { rules, replace -> viewModel.resolveConflict(rules, replace) },
+                            onCancelImport = { viewModel.cancelImport() },
+                            onClearImportError = { viewModel.clearImportError() },
+                            onShowToast = { msg, err -> viewModel.showToast(msg, err) },
+                            onBack = { showRoutingRules = false },
+                            scaleFactor = scaleFactor
+                        )
                     }
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(WardenCard)
-                    .border(1.dp, WardenCardBorder)
-                    .navigationBarsPadding()
+            // نمایش سفارشی نوار ناوبری متحرک منحنی (خفیف شدن در صفحات جانبی)
+            AnimatedVisibility(
+                visible = !isSubScreenOpen && selectedTab != 4,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                WardenBottomNavItem(
-                    title = "داشبورد",
-                    isSelected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    modifier = Modifier.weight(1f)
-                )
-                WardenBottomNavItem(
-                    title = "تنظیمات",
-                    isSelected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    modifier = Modifier.weight(1f)
+                CurvedNavBar(
+                    selectedTab = selectedTab,
+                    navBarHeight = navBarHeight,
+                    onTabSelected = { selectedTab = it }
                 )
             }
         }
@@ -447,39 +402,6 @@ private fun DashboardContent(viewModel: AetherViewModel) {
                 scaleFactor = scaleFactor
             )
         }
-    }
-}
-
-@Composable
-private fun WardenBottomNavItem(
-    title: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .clip(CircleShape)
-                .background(if (isSelected) WardenAccent else WardenTextMuted.copy(alpha = 0.5f))
-        )
-        Text(
-            text = title,
-            color = if (isSelected) WardenAccent else WardenTextMuted,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
-        )
     }
 }
 
@@ -499,7 +421,7 @@ fun ZeroTrustLoginDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f))
+                .background(Color.Black.copy(alpha = 0.65f))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { focusManager.clearFocus() },
             contentAlignment = Alignment.Center
         ) {
@@ -508,6 +430,7 @@ fun ZeroTrustLoginDialog(
                     .width((320 * scaleFactor).dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(Color(0xFF1C1C1E))
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(28.dp))
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -515,7 +438,7 @@ fun ZeroTrustLoginDialog(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(IosNavActiveBlue.copy(alpha = 0.1f)),
+                        .background(IosNavActiveBlue.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -525,9 +448,9 @@ fun ZeroTrustLoginDialog(
                         modifier = Modifier.size(28.dp)
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(20.dp))
-                
+
                 Text(
                     text = "Zero Trust Login",
                     style = MaterialTheme.typography.headlineSmall,
@@ -535,70 +458,270 @@ fun ZeroTrustLoginDialog(
                     color = Color.White,
                     fontSize = (20 * scaleFactor).sp
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
                     text = "A one-time code was sent to your email. Please enter it below to authorize this device.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = IosNavInactiveGrey,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                     fontSize = (13 * scaleFactor).sp,
                     lineHeight = 18.sp
                 )
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
-                
-                androidx.compose.foundation.text.BasicTextField(
+
+                BasicTextField(
                     value = code,
                     onValueChange = { if (it.length <= 6) code = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
-                        .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(14.dp)),
+                        .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
                     textStyle = MaterialTheme.typography.headlineMedium.copy(
                         color = IosNavActiveBlue,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 8.sp
                     ),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword,
-                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.NumberPassword,
+                        imeAction = ImeAction.Done
                     ),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { 
+                    keyboardActions = KeyboardActions(onDone = {
                         if (code.length == 6) onSubmit(code)
                     }),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(IosNavActiveBlue),
+                    cursorBrush = SolidColor(IosNavActiveBlue),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.Center) {
                             if (code.isEmpty()) {
-                                Text("000000", color = Color.White.copy(alpha = 0.05f), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, letterSpacing = 8.sp)
+                                Text(
+                                    "000000",
+                                    color = Color.White.copy(alpha = 0.1f),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 8.sp
+                                )
                             }
                             innerTextField()
                         }
                     }
                 )
-                
+
                 Spacer(modifier = Modifier.height(32.dp))
-                
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    androidx.compose.material3.TextButton(
+                    TextButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(50.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text("Cancel", color = IosNavInactiveGrey, fontWeight = FontWeight.Medium)
                     }
-                    androidx.compose.material3.Button(
+                    Button(
                         onClick = { if (code.length == 6) onSubmit(code) },
                         enabled = code.length == 6,
-                        modifier = Modifier.weight(1f).height(50.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = IosNavActiveBlue),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = IosNavActiveBlue,
+                            disabledContainerColor = IosNavActiveBlue.copy(alpha = 0.4f)
+                        ),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Verify", fontWeight = FontWeight.Bold)
+                        Text("Verify", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CurvedNavBar(
+    selectedTab: Int,
+    navBarHeight: Dp,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val screenWidth = this.maxWidth
+        val scaleFactor = (screenWidth.value / 411f).coerceIn(0.7f, 1.1f)
+
+        val scaledBarHeight = (BarContentHeight.value * scaleFactor).dp
+        val scaledButtonSize = (ButtonSize.value * scaleFactor).dp
+        val scaledButtonCenterY = (ButtonCenterY.value * scaleFactor).dp
+        val scaledCircleGap = (CircleGap.value * scaleFactor).dp
+        val scaledBarTopY = (BarTopY.value * scaleFactor).dp
+        val scaledItemBottomPadding = (ItemBottomPadding.value * scaleFactor).dp
+
+        val tabs = listOf(
+            "Dashboard" to Icons.Default.Dashboard,
+            "Settings" to Icons.Default.Settings,
+            "Logs" to Icons.Default.Code,
+            "About" to Icons.Default.Info
+        )
+        val tabCount = tabs.size
+        var barWidthPx by remember { mutableIntStateOf(0) }
+
+        val indicatorOffset by animateFloatAsState(
+            targetValue = selectedTab.toFloat(),
+            animationSpec = spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow),
+            label = "indicatorOffset"
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(scaledBarHeight + navBarHeight)
+                .onSizeChanged { barWidthPx = it.width }
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .shadow(elevation = (16 * scaleFactor).dp, spotColor = Color.Black.copy(alpha = 0.6f))
+            ) {
+                val tabWidth = size.width / tabCount
+                val centerX = (indicatorOffset * tabWidth) + (tabWidth / 2)
+                val barTop = scaledBarTopY.toPx()
+                val notchBottom = scaledButtonCenterY.toPx() + (scaledButtonSize.toPx() / 2f) + scaledCircleGap.toPx()
+                val shoulderWidth = (45.dp.toPx() * scaleFactor)
+
+                val barShape = Path().apply {
+                    moveTo(0f, barTop)
+                    lineTo(centerX - shoulderWidth, barTop)
+
+                    cubicTo(
+                        centerX - (40.dp.toPx() * scaleFactor), barTop,
+                        centerX - (38.dp.toPx() * scaleFactor), barTop + (2.dp.toPx() * scaleFactor),
+                        centerX - (35.dp.toPx() * scaleFactor), barTop + (10.dp.toPx() * scaleFactor)
+                    )
+                    cubicTo(
+                        centerX - (28.dp.toPx() * scaleFactor), barTop + (26.dp.toPx() * scaleFactor),
+                        centerX - (20.dp.toPx() * scaleFactor), notchBottom,
+                        centerX, notchBottom
+                    )
+                    cubicTo(
+                        centerX + (20.dp.toPx() * scaleFactor), notchBottom,
+                        centerX + (28.dp.toPx() * scaleFactor), barTop + (26.dp.toPx() * scaleFactor),
+                        centerX + (35.dp.toPx() * scaleFactor), barTop + (10.dp.toPx() * scaleFactor)
+                    )
+                    cubicTo(
+                        centerX + (38.dp.toPx() * scaleFactor), barTop + (2.dp.toPx() * scaleFactor),
+                        centerX + (40.dp.toPx() * scaleFactor), barTop,
+                        centerX + shoulderWidth, barTop
+                    )
+
+                    lineTo(size.width, barTop)
+                    lineTo(size.width, size.height)
+                    lineTo(0f, size.height)
+                    close()
+                }
+                drawPath(
+                    path = barShape,
+                    color = IosNavBackground.copy(alpha = 0.96f),
+                    style = Fill
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(scaledButtonSize + (scaledCircleGap * 2))
+                    .offset {
+                        val tabWidth = barWidthPx.toFloat() / tabCount
+                        val outerSize = scaledButtonSize.toPx() + scaledCircleGap.toPx() * 2f
+                        IntOffset(
+                            (indicatorOffset * tabWidth + (tabWidth / 2) - (outerSize / 2f)).roundToInt(),
+                            (scaledButtonCenterY.toPx() - outerSize / 2f).roundToInt()
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(scaledButtonSize)
+                        .shadow(
+                            elevation = (12 * scaleFactor).dp,
+                            shape = CircleShape,
+                            spotColor = IosNavActiveBlue.copy(alpha = 0.6f)
+                        )
+                        .background(IosNavActiveBlue, CircleShape)
+                        .border(
+                            width = (1.5 * scaleFactor).dp,
+                            color = Color.White.copy(alpha = 0.35f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = tabs[selectedTab.coerceIn(0, tabs.size - 1)].second,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size((28 * scaleFactor).dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(scaledBarHeight)
+                    .align(Alignment.TopStart),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                tabs.forEachIndexed { index, (label, icon) ->
+                    val isSelected = selectedTab == index
+
+                    val contentAlpha by animateFloatAsState(
+                        targetValue = if (isSelected) 1f else 0.5f,
+                        label = "contentAlpha"
+                    )
+
+                    val textOffset by animateFloatAsState(
+                        targetValue = if (isSelected) 0f else 8f,
+                        animationSpec = spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow),
+                        label = "textOffset"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { onTabSelected(index) }
+                            .padding(bottom = scaledItemBottomPadding),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                            modifier = Modifier.graphicsLayer(alpha = contentAlpha)
+                        ) {
+                            if (!isSelected) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = IosNavInactiveGrey,
+                                    modifier = Modifier.size((24 * scaleFactor).dp)
+                                )
+                                Spacer(modifier = Modifier.height((4 * scaleFactor).dp))
+                            }
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = (10 * scaleFactor).sp,
+                                color = if (isSelected) IosNavActiveBlue else IosNavInactiveGrey,
+                                modifier = Modifier.graphicsLayer(translationY = textOffset)
+                            )
+                        }
                     }
                 }
             }
