@@ -63,10 +63,6 @@ import io.github.immaghzbad.aetherst.ui.OnboardingViewModel
 import io.github.immaghzbad.aetherst.ui.components.IosToast
 import io.github.immaghzbad.aetherst.ui.theme.ThemeSelectionScreen
 
-private val IosNavBackground = Color(0xFF1C1C1E)
-private val IosNavActiveBlue = Color(0xFF007AFF)
-private val IosNavInactiveGrey = Color(0xFF8E8E93)
-
 private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
     is ComponentActivity -> this
     is ContextWrapper -> baseContext.findComponentActivity()
@@ -256,7 +252,7 @@ private fun DashboardContent(viewModel: AetherViewModel) {
 
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val saveableStateHolder = rememberSaveableStateHolder()
-    val bottomPadding = navBarHeight // نوار تب از بین رفته، بنابراین این تنها حاشیه پایینه
+    val bottomPadding = navBarHeight 
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidth = this.maxWidth
@@ -402,7 +398,7 @@ fun ZeroTrustLoginDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.65f))
+                .background(Color.Black.copy(alpha = 0.65f)) 
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { focusManager.clearFocus() },
             contentAlignment = Alignment.Center
         ) {
@@ -410,8 +406,8 @@ fun ZeroTrustLoginDialog(
                 modifier = Modifier
                     .width((320 * scaleFactor).dp)
                     .clip(RoundedCornerShape(28.dp))
-                    .background(Color(0xFF1C1C1E))
-                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(28.dp))
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -419,13 +415,13 @@ fun ZeroTrustLoginDialog(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(IosNavActiveBlue.copy(alpha = 0.15f)),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = null,
-                        tint = IosNavActiveBlue,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -436,7 +432,7 @@ fun ZeroTrustLoginDialog(
                     text = "Zero Trust Login",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = (20 * scaleFactor).sp
                 )
 
@@ -445,7 +441,7 @@ fun ZeroTrustLoginDialog(
                 Text(
                     text = "A one-time code was sent to your email. Please enter it below to authorize this device.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = IosNavInactiveGrey,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     fontSize = (13 * scaleFactor).sp,
                     lineHeight = 18.sp
@@ -459,10 +455,10 @@ fun ZeroTrustLoginDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
-                        .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(14.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)),
                     textStyle = MaterialTheme.typography.headlineMedium.copy(
-                        color = IosNavActiveBlue,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 8.sp
@@ -474,13 +470,13 @@ fun ZeroTrustLoginDialog(
                     keyboardActions = KeyboardActions(onDone = {
                         if (code.length == 6) onSubmit(code)
                     }),
-                    cursorBrush = SolidColor(IosNavActiveBlue),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.Center) {
                             if (code.isEmpty()) {
                                 Text(
                                     "000000",
-                                    color = Color.White.copy(alpha = 0.1f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 8.sp
@@ -501,7 +497,7 @@ fun ZeroTrustLoginDialog(
                             .height(50.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Cancel", color = IosNavInactiveGrey, fontWeight = FontWeight.Medium)
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
                     }
                     Button(
                         onClick = { if (code.length == 6) onSubmit(code) },
@@ -510,12 +506,13 @@ fun ZeroTrustLoginDialog(
                             .weight(1f)
                             .height(50.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = IosNavActiveBlue,
-                            disabledContainerColor = IosNavActiveBlue.copy(alpha = 0.4f)
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Verify", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Verify", fontWeight = FontWeight.Bold)
                     }
                 }
             }
