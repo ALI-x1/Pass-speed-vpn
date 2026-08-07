@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.immaghzbad.aetherst.model.*
+import io.github.immaghzbad.aetherst.ui.theme.LocalAppTheme
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
@@ -38,7 +39,7 @@ fun OnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp)
     ) {
         Column(
@@ -72,7 +73,6 @@ fun OnboardingScreen(
                         )
                         OnboardingStep.VPN_PERMISSION -> VpnPermissionStep(onRequestVpnPermission)
                         OnboardingStep.NOTIFICATION_PERMISSION -> NotificationPermissionStep(state, onRequestNotificationPermission)
-                        OnboardingStep.BATTERY_OPTIMIZATION -> BatteryOptimizationStep(onRequestBatteryOptimization, onFinish)
                         OnboardingStep.SUCCESS -> SuccessStep(onFinish)
                         else -> Box(Modifier.fillMaxSize())
                     }
@@ -117,10 +117,10 @@ private fun OnboardingHeader() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(modifier = Modifier.height(48.dp))
         Text(
-            text = "AetherST",
+            text = "Warden VPN",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
         Box(modifier = Modifier.height(24.dp), contentAlignment = Alignment.Center) {
             AnimatedContent(
@@ -134,7 +134,7 @@ private fun OnboardingHeader() {
                 Text(
                     text = slogan,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF8E8E93),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
             }
@@ -148,9 +148,9 @@ private fun WelcomeStep(onGetStarted: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Welcome to AetherST",
+            text = "Welcome to Warden VPN",
             style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -158,7 +158,7 @@ private fun WelcomeStep(onGetStarted: () -> Unit) {
         Text(
             text = "Let’s prepare your secure connection in a few quick steps.",
             style = MaterialTheme.typography.bodyLarge,
-            color = Color(0xFF8E8E93),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(48.dp))
@@ -166,9 +166,12 @@ private fun WelcomeStep(onGetStarted: () -> Unit) {
             onClick = onGetStarted,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF), contentColor = Color.White)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         ) {
-            Text("Get Started", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Get Started", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -189,12 +192,13 @@ private fun ProtocolTestStep(
         it.status == ProtocolTestStatus.CANCELLED
     }
     val anySuccess = state.protocolResults.any { it.status == ProtocolTestStatus.CONNECTED }
+    val appTheme = LocalAppTheme.current
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = "Preparing Your Connection",
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -217,7 +221,12 @@ private fun ProtocolTestStep(
 
         if (state.error != null) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = state.error, color = Color(0xFFFF3B30), fontSize = 12.sp, textAlign = TextAlign.Center)
+            Text(
+                text = state.error,
+                color = appTheme.error,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center
+            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -225,32 +234,40 @@ private fun ProtocolTestStep(
         if (state.isProcessing) {
             Button(
                 onClick = onCancel,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E), contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("Cancel Test", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Cancel Test", fontWeight = FontWeight.Bold)
             }
         } else if (allDone && anySuccess) {
             Button(
                 onClick = onContinue,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759), contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = appTheme.connected,
+                    contentColor = Color.White
+                )
             ) {
-                Text("Continue", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Continue", fontWeight = FontWeight.Bold)
             }
         } else {
             Button(
                 onClick = onStart,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF), contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Text(
                     text = if (state.error != null) "Try Again" else "Start Connection Test",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -262,7 +279,7 @@ private fun SelectorLabel() {
     Text(
         text = "SCAN MODE",
         style = MaterialTheme.typography.labelSmall,
-        color = Color(0xFF8E8E93),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 8.dp)
     )
 }
@@ -275,7 +292,11 @@ private fun AetherScanModeSelector(
     onSelect: (AetherScanMode) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF1C1C1E)).padding(4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(4.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         allowedModes.forEach { mode ->
@@ -284,7 +305,7 @@ private fun AetherScanModeSelector(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSelected) Color(0xFF007AFF) else Color.Transparent)
+                    .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
                     .clickable(enabled = enabled) { onSelect(mode) }
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
@@ -299,7 +320,7 @@ private fun AetherScanModeSelector(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (isSelected) Color.White else Color(0xFF8E8E93),
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                 )
             }
@@ -309,8 +330,9 @@ private fun AetherScanModeSelector(
 
 @Composable
 private fun ProtocolRow(name: String, status: ProtocolTestStatus, isActive: Boolean) {
+    val appTheme = LocalAppTheme.current
     Surface(
-        color = Color(0xFF1C1C1E),
+        color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -320,7 +342,7 @@ private fun ProtocolRow(name: String, status: ProtocolTestStatus, isActive: Bool
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(text = name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(text = name, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                 if (isActive) {
                     Text(
                         text = when (status) {
@@ -330,17 +352,17 @@ private fun ProtocolRow(name: String, status: ProtocolTestStatus, isActive: Bool
                             else -> ""
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF007AFF)
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
             when (status) {
-                ProtocolTestStatus.WAITING -> Text("Waiting", color = Color(0xFF8E8E93), style = MaterialTheme.typography.labelSmall)
-                ProtocolTestStatus.CONNECTED -> Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF34C759))
-                ProtocolTestStatus.FAILED, ProtocolTestStatus.TIMED_OUT -> Icon(Icons.Default.Error, null, tint = Color(0xFFFF3B30))
-                ProtocolTestStatus.CANCELLED -> Text("Cancelled", color = Color(0xFF8E8E93), style = MaterialTheme.typography.labelSmall)
-                else -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFF007AFF))
+                ProtocolTestStatus.WAITING -> Text("Waiting", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                ProtocolTestStatus.CONNECTED -> Icon(Icons.Default.CheckCircle, null, tint = appTheme.connected)
+                ProtocolTestStatus.FAILED, ProtocolTestStatus.TIMED_OUT -> Icon(Icons.Default.Error, null, tint = appTheme.error)
+                ProtocolTestStatus.CANCELLED -> Text("Cancelled", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                else -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -349,12 +371,12 @@ private fun ProtocolRow(name: String, status: ProtocolTestStatus, isActive: Bool
 @Composable
 private fun VpnPermissionStep(onRequest: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Allow VPN Access", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text("Allow VPN Access", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "AetherST needs VPN permission to create a secure tunnel. Your current connection remains untouched for now.",
+            text = "Warden VPN needs VPN permission to create a secure tunnel. Your current connection remains untouched for now.",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF8E8E93),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(48.dp))
@@ -362,22 +384,26 @@ private fun VpnPermissionStep(onRequest: () -> Unit) {
             onClick = onRequest,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF), contentColor = Color.White)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         ) {
-            Text("Allow Access", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Allow Access", fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
 private fun NotificationPermissionStep(state: OnboardingState, onRequest: () -> Unit) {
+    val appTheme = LocalAppTheme.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Stay Informed", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text("Stay Informed", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "Enable notifications to see tunnel status and important updates.",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF8E8E93),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(48.dp))
@@ -385,15 +411,18 @@ private fun NotificationPermissionStep(state: OnboardingState, onRequest: () -> 
             onClick = onRequest,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF), contentColor = Color.White)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         ) {
-            Text("Enable Notifications", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Enable Notifications", fontWeight = FontWeight.Bold)
         }
         if (state.error != null) {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = state.error,
-                color = Color(0xFFFF9500),
+                color = appTheme.error,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Medium
@@ -403,41 +432,16 @@ private fun NotificationPermissionStep(state: OnboardingState, onRequest: () -> 
 }
 
 @Composable
-private fun BatteryOptimizationStep(onRequest: () -> Unit, onSkip: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Unrestricted Background Service", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "To ensure a stable and persistent tunnel connection, please disable battery optimizations for AetherST.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF8E8E93),
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(48.dp))
-        Button(
-            onClick = onRequest,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF), contentColor = Color.White)
-        ) {
-            Text("Disable Restrictions", fontWeight = FontWeight.Bold, color = Color.White)
-        }
-        TextButton(onClick = onSkip) {
-            Text("Not Now", color = Color.White)
-        }
-    }
-}
-
-@Composable
 private fun SuccessStep(onFinish: () -> Unit) {
+    val appTheme = LocalAppTheme.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF34C759), modifier = Modifier.size(80.dp))
+        Icon(Icons.Default.CheckCircle, null, tint = appTheme.connected, modifier = Modifier.size(80.dp))
         Spacer(modifier = Modifier.height(24.dp))
-        Text("Setup Complete", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text("Setup Complete", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "AetherST is ready to protect your connection. You can now enter the dashboard and start the tunnel.",
-            color = Color(0xFF8E8E93),
+            text = "Warden VPN is ready to protect your connection. You can now enter the dashboard and start the tunnel.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(48.dp))
@@ -445,9 +449,12 @@ private fun SuccessStep(onFinish: () -> Unit) {
             onClick = onFinish,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759), contentColor = Color.White)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = appTheme.connected,
+                contentColor = Color.White
+            )
         ) {
-            Text("Start Secure Journey", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Start Secure Journey", fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -459,26 +466,28 @@ private fun OnboardingFooter(currentStep: OnboardingStep) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        OnboardingStep.entries.filter { it != OnboardingStep.COMPLETED }.forEach { step ->
-            val isSelected = step == currentStep
-            val width by animateDpAsState(
-                targetValue = if (isSelected) 24.dp else 8.dp,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                label = "indicator_width"
-            )
-            val color by animateColorAsState(
-                targetValue = if (isSelected) Color(0xFF007AFF) else Color(0xFF2C2C2E),
-                animationSpec = tween(400),
-                label = "indicator_color"
-            )
+        OnboardingStep.entries
+            .filter { it != OnboardingStep.COMPLETED && it != OnboardingStep.BATTERY_OPTIMIZATION }
+            .forEach { step ->
+                val isSelected = step == currentStep
+                val width by animateDpAsState(
+                    targetValue = if (isSelected) 24.dp else 8.dp,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                    label = "indicator_width"
+                )
+                val color by animateColorAsState(
+                    targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    animationSpec = tween(400),
+                    label = "indicator_color"
+                )
 
-            Box(
-                modifier = Modifier
-                    .height(8.dp)
-                    .width(width)
-                    .clip(CircleShape)
-                    .background(color)
-            )
-        }
+                Box(
+                    modifier = Modifier
+                        .height(8.dp)
+                        .width(width)
+                        .clip(CircleShape)
+                        .background(color)
+                )
+            }
     }
 }
