@@ -36,6 +36,7 @@ import androidx.core.app.LocaleManagerCompat
 import androidx.core.os.LocaleListCompat
 import io.github.immaghzbad.aetherst.core.NetworkUtils
 import io.github.immaghzbad.aetherst.model.*
+import androidx.appcompat.app.AppCompatDelegate
 
 // رنگ‌های داینامیک و متصل به تم اپلیکیشن
 @OptIn(ExperimentalMaterial3Api::class)
