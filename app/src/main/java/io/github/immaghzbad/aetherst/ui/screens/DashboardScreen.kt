@@ -664,54 +664,71 @@ fun WardenPowerButton(
     val isError = connectionStatus == ConnectionStatus.ERROR
 
     val appTheme = LocalAppTheme.current
-    val inactiveColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
 
-    // انیمیشن نرم برای رنگ اصلی براساس تم و وضعیت
+    // حالت خاموش: رنگ از تم متریال انتخابی میاد (Classic Glow)
+    val themeAccentColor = MaterialTheme.colorScheme.primary
+
+    // حالت‌های در-حال-اتصال و متصل: رنگ ثابت، مستقل از تم انتخابی
+    val connectingColor = Color(0xFFF59E0B)
+    val connectedColor = Color(0xFF22C55E)
+
+    // انیمیشن نرم برای رنگ اصلی براساس وضعیت
     val mainColor by animateColorAsState(
         targetValue = when {
-            isRunning -> appTheme.connected
-            isConnecting -> appTheme.scanning
+            isRunning -> connectedColor
+            isConnecting -> connectingColor
             isError -> appTheme.error
-            else -> inactiveColor
+            else -> themeAccentColor
         },
         animationSpec = tween(durationMillis = 400),
         label = "MainColorAnimation"
     )
 
-    // پس‌زمینه داخلی دکمه (نیمه‌شفاف)
-    val animatedContainerColor by animateColorAsState(
+    // پس‌زمینه داخلی دکمه: سفید در حالت خاموش، هم‌رنگ ملایم وضعیت در بقیه حالت‌ها
+    val containerColor by animateColorAsState(
         targetValue = when {
-            isRunning -> appTheme.connected.copy(alpha = 0.12f)
-            isConnecting -> appTheme.scanning.copy(alpha = 0.12f)
-            isError -> appTheme.error.copy(alpha = 0.12f)
-            else -> Color.Transparent
+            isRunning -> connectedColor.copy(alpha = 0.08f)
+            isConnecting -> connectingColor.copy(alpha = 0.08f)
+            isError -> appTheme.error.copy(alpha = 0.08f)
+            else -> Color.White
         },
         animationSpec = tween(durationMillis = 400),
         label = "ContainerColorAnimation"
     )
 
-    // انیمیشن ضربان (Pulse Glow) فقط در حالت متصل
-    val infiniteTransition = rememberInfiniteTransition(label = "GlowTransition")
-    
-    val haloScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = if (isRunning) 1.28f else 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "HaloScale"
+    // هاله‌ی نرم پشت دکمه (Glow) - همیشه نمایش داده می‌شود، هم‌رنگ وضعیت فعلی
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isRunning) 0.22f else if (isConnecting) 0.20f else 0.15f,
+        animationSpec = tween(durationMillis = 500),
+        label = "GlowAlpha"
     )
 
-    val haloAlpha by infiniteTransition.animateFloat(
-        initialValue = if (isRunning) 0.35f else 0.0f,
-        targetValue = if (isRunning) 0.02f else 0.0f,
+    val infiniteTransition = rememberInfiniteTransition(label = "PowerButtonTransition")
+
+    // حلقه‌ی چرخان دور دکمه، فقط موقع در حال اتصال
+    val spinAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 1000, easing = LinearEasing)
+        ),
+        label = "SpinRing"
+    )
+
+    // پالس آیکون شیلد، فقط موقع در حال اتصال
+    val iconAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (isConnecting) 0.5f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "HaloAlpha"
+        label = "IconPulse"
     )
+
+    // موج‌های ریپل هنگام لمس دکمه
+    val ripples = remember { mutableStateListOf<Animatable<Float, AnimationVector1D>>() }
+    val rippleScope = rememberCoroutineScope()
 
     // انیمیشن فنری برای لمس دکمه
     var isPressed by remember { mutableStateOf(false) }
@@ -725,21 +742,46 @@ fun WardenPowerButton(
         modifier = Modifier.size(size * 1.4f), // ایجاد فضای بیشتر برای هاله
         contentAlignment = Alignment.Center
     ) {
-        // هاله‌های نورانی (فقط وقتی متصل است پخش می‌شود)
-        if (isRunning) {
+        // هاله‌ی نورانی پشت دکمه (Glow) - در همه حالت‌ها، هم‌رنگ وضعیت فعلی
+        Box(
+            modifier = Modifier
+                .size(size * 1.3f)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            mainColor.copy(alpha = glowAlpha),
+                            mainColor.copy(alpha = 0f)
+                        )
+                    )
+                )
+        )
+
+        // موج‌های ریپل هنگام لمس
+        ripples.forEach { anim ->
             Box(
                 modifier = Modifier
                     .size(size)
-                    .scale(haloScale * 1.12f)
+                    .scale(anim.value)
                     .clip(CircleShape)
-                    .background(mainColor.copy(alpha = haloAlpha * 0.4f))
+                    .background(mainColor.copy(alpha = (0.3f * (1f - (anim.value - 1f) / 0.8f)).coerceIn(0f, 0.3f)))
             )
+        }
+
+        // حلقه‌ی چرخان دور دکمه، فقط موقع در حال اتصال
+        if (isConnecting) {
             Box(
                 modifier = Modifier
-                    .size(size)
-                    .scale(haloScale)
+                    .size(size + 6.dp)
+                    .graphicsLayer { rotationZ = spinAngle }
                     .clip(CircleShape)
-                    .background(mainColor.copy(alpha = haloAlpha))
+                    .border(
+                        width = 3.dp,
+                        brush = Brush.sweepGradient(
+                            colors = listOf(Color.Transparent, mainColor, mainColor, Color.Transparent)
+                        ),
+                        shape = CircleShape
+                    )
             )
         }
 
@@ -749,7 +791,7 @@ fun WardenPowerButton(
                 .size(size)
                 .scale(buttonClickScale)
                 .clip(CircleShape)
-                .background(animatedContainerColor)
+                .background(containerColor)
                 .border(
                     width = 3.dp,
                     color = mainColor,
@@ -760,6 +802,15 @@ fun WardenPowerButton(
                     indication = null,
                     onClick = {
                         isPressed = true
+                        val rippleAnim = Animatable(1f)
+                        ripples.add(rippleAnim)
+                        rippleScope.launch {
+                            rippleAnim.animateTo(
+                                targetValue = 1.8f,
+                                animationSpec = tween(durationMillis = 600, easing = LinearOutSlowInEasing)
+                            )
+                            ripples.remove(rippleAnim)
+                        }
                         onToggle()
                     }
                 ),
@@ -772,32 +823,30 @@ fun WardenPowerButton(
                 }
             }
 
-            // نمایش Loading موقع اتصال، یا آیکون+متن موقع توقف/اتصال موفق
-            if (isConnecting) {
-                CircularProgressIndicator(
-                    color = mainColor,
-                    modifier = Modifier.size(size * 0.35f),
-                    strokeWidth = 3.dp
+            // آیکون شیلد و متن وضعیت (بدون نمایش Loading جدا، دقیقا مطابق نمونه‌ی Classic Glow)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Shield,
+                    contentDescription = if (isRunning) "Disconnect" else "Connect",
+                    tint = mainColor,
+                    modifier = Modifier
+                        .size(size * 0.28f)
+                        .graphicsLayer { alpha = iconAlpha }
                 )
-            } else {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = if (isRunning) "Disconnect" else "Connect",
-                        tint = mainColor,
-                        modifier = Modifier.size(size * 0.28f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = if (isRunning) "قطع کن" else "اتصال",
-                        color = mainColor,
-                        fontSize = (size.value * 0.12f).sp, // فونت داینامیک براساس سایز
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = when {
+                        isConnecting -> "در حال اتصال..."
+                        isRunning -> "قطع کن"
+                        else -> "اتصال"
+                    },
+                    color = mainColor,
+                    fontSize = (size.value * 0.12f).sp, // فونت داینامیک براساس سایز
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
