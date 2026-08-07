@@ -90,7 +90,9 @@ android {
 }
 
 dependencies {
-  implementation("androidx.appcompat:appcompat:1.7.0") // <-- اضافه شد برای رفع خطای appcompat و setApplicationLocales
+  // این خط برای رفع خطای appcompat اضافه شد
+  implementation("androidx.appcompat:appcompat:1.7.0") 
+  
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.compose.material.icons.core)
