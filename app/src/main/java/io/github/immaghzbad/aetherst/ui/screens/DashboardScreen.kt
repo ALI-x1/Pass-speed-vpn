@@ -189,7 +189,7 @@ fun DashboardScreen(
                 contentAlignment = Alignment.Center
             ) {
                 val minDim = if (screenWidth < screenHeight) screenWidth else screenHeight
-                val buttonSize = (minDim * 0.35f).coerceIn(100.dp, 160.dp)
+                val buttonSize = (minDim * 0.52f).coerceIn(175.dp, 230.dp)
                 
                 WardenPowerButton(
                     connectionStatus = connectionStatus,
@@ -698,7 +698,7 @@ fun WardenPowerButton(
 
     // هاله‌ی نرم پشت دکمه (Glow) - همیشه نمایش داده می‌شود، هم‌رنگ وضعیت فعلی
     val glowAlpha by animateFloatAsState(
-        targetValue = if (isRunning) 0.22f else if (isConnecting) 0.20f else 0.15f,
+        targetValue = if (isRunning) 0.32f else if (isConnecting) 0.30f else 0.26f,
         animationSpec = tween(durationMillis = 500),
         label = "GlowAlpha"
     )
@@ -739,18 +739,19 @@ fun WardenPowerButton(
     )
 
     Box(
-        modifier = Modifier.size(size * 1.4f), // ایجاد فضای بیشتر برای هاله
+        modifier = Modifier.size(size * 1.6f), // ایجاد فضای بیشتر برای هاله
         contentAlignment = Alignment.Center
     ) {
         // هاله‌ی نورانی پشت دکمه (Glow) - در همه حالت‌ها، هم‌رنگ وضعیت فعلی
         Box(
             modifier = Modifier
-                .size(size * 1.3f)
+                .size(size * 1.5f)
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
                             mainColor.copy(alpha = glowAlpha),
+                            mainColor.copy(alpha = glowAlpha * 0.35f),
                             mainColor.copy(alpha = 0f)
                         )
                     )
@@ -833,19 +834,23 @@ fun WardenPowerButton(
                     contentDescription = if (isRunning) "Disconnect" else "Connect",
                     tint = mainColor,
                     modifier = Modifier
-                        .size(size * 0.28f)
+                        .size(size * 0.32f)
                         .graphicsLayer { alpha = iconAlpha }
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                // متن انگلیسی و بزرگ‌حروف، مطابق سبک اپ‌های معروف VPN (NordVPN / ExpressVPN و ...)
                 Text(
                     text = when {
-                        isConnecting -> "در حال اتصال..."
-                        isRunning -> "قطع کن"
-                        else -> "اتصال"
+                        isConnecting -> "CONNECTING..."
+                        isRunning -> "DISCONNECT"
+                        else -> "CONNECT"
                     },
                     color = mainColor,
-                    fontSize = (size.value * 0.12f).sp, // فونت داینامیک براساس سایز
-                    fontWeight = FontWeight.Bold
+                    fontSize = (size.value * 0.105f).sp, // فونت داینامیک براساس سایز
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
                 )
             }
         }
