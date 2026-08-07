@@ -73,7 +73,7 @@ fun SettingsScreen(
     var showConnectionSheet by remember { mutableStateOf(false) }
     var showLanguageSheet by remember { mutableStateOf(false) }
 
-    // توابع و متغیرهای مربوط به تغییر زبان بدون نیاز به AppCompat
+    // توابع و متغیرهای مربوط به تغییر زبان
     val currentLocale = LocaleManagerCompat.getApplicationLocales(context).toLanguageTags()
     val currentLanguageDisplay = when {
         currentLocale.startsWith("fa") -> "فارسی"
@@ -87,7 +87,8 @@ fun SettingsScreen(
         } else {
             LocaleListCompat.forLanguageTags(languageCode)
         }
-        LocaleManagerCompat.setApplicationLocales(context, localeList)
+        // استفاده صحیح از AppCompatDelegate برای تغییر زبان که در تمام نسخه‌های اندروید کار می‌کند
+        AppCompatDelegate.setApplicationLocales(localeList)
     }
 
     // اتصال رنگ‌ها به تم اصلی متریال دیزاین تا با تغییر تم عوض شوند
@@ -106,7 +107,7 @@ fun SettingsScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(bgColor) // رفع مشکل تم مشکی ثابت
+            .background(bgColor)
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
