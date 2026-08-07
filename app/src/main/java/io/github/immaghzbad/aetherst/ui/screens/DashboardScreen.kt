@@ -36,6 +36,7 @@ import io.github.immaghzbad.aetherst.data.PingState
 import io.github.immaghzbad.aetherst.model.*
 import io.github.immaghzbad.aetherst.ui.theme.LocalAppTheme
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
@@ -427,6 +428,7 @@ fun WardenStatusHeroCard(
                 .padding((14 * scaleFactor).dp)
         ) {
             Column {
+                // --- بخش وضعیت بالا (Finding Servers / Protocol) ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -475,6 +477,172 @@ fun WardenStatusHeroCard(
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = (8.5 * scaleFactor).sp
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height((16 * scaleFactor).dp))
+
+                // --- تایمر و پینگ ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text(
+                        text = formatTime(elapsedSeconds),
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = (32 * scaleFactor).sp
+                    )
+
+                    if (connectionStatus == ConnectionStatus.RUNNING) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onRefreshPing() }
+                                .padding(4.dp)
+                        ) {
+                            if (pingState.isPinging) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size((14 * scaleFactor).dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Speed,
+                                    contentDescription = "Ping",
+                                    tint = if (pingState.error != null) appTheme.error else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size((16 * scaleFactor).dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = when {
+                                    pingState.isPinging -> "..."
+                                    pingState.error != null -> "ERR"
+                                    pingState.ms >= 0 -> "${pingState.ms}ms"
+                                    else -> "PING"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (pingState.error != null) appTheme.error else MaterialTheme.colorScheme.primary,
+                                fontSize = (14 * scaleFactor).sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height((14 * scaleFactor).dp))
+
+                // --- سرعت آپلود و دانلود ---
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "UPLOAD", 
+                            fontSize = (9 * scaleFactor).sp, 
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, 
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = formatTrafficBytes(sessionTraffic.uploadedBytes), 
+                            fontSize = (14 * scaleFactor).sp, 
+                            color = MaterialTheme.colorScheme.primary, 
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "DOWNLOAD", 
+                            fontSize = (9 * scaleFactor).sp, 
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, 
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = formatTrafficBytes(sessionTraffic.downloadedBytes), 
+                            fontSize = (14 * scaleFactor).sp, 
+                            color = appTheme.connected, 
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height((12 * scaleFactor).dp))
+
+                // --- کارت آی پی و کشور زنده ---
+                val clipboardManager = LocalClipboardManager.current
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            if (ipInfo.ip.isNotEmpty()) {
+                                clipboardManager.setText(AnnotatedString(ipInfo.ip))
+                                onShowToast("IP copied to clipboard", false)
+                            } else {
+                                onRefreshIpInfo()
+                            }
+                        },
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = ipInfo.flagEmoji.ifEmpty { "🌐" }, 
+                                fontSize = (22 * scaleFactor).sp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = when {
+                                        ipInfo.country.isNotEmpty() -> if (ipInfo.countryCode.isNotEmpty()) "${ipInfo.country} (${ipInfo.countryCode})" else ipInfo.country
+                                        ipInfo.isLoading -> "Locating..."
+                                        ipInfo.error != null -> "Error"
+                                        else -> "Unknown Location"
+                                    },
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = (13 * scaleFactor).sp
+                                )
+                                Text(
+                                    text = when {
+                                        ipInfo.ip.isNotEmpty() -> ipInfo.ip
+                                        ipInfo.isLoading -> "Fetching IP..."
+                                        ipInfo.error != null -> "Failed to get IP"
+                                        else -> "Tap to fetch IP"
+                                    },
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = (11 * scaleFactor).sp
+                                )
+                            }
+                        }
+                        if (ipInfo.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size((16 * scaleFactor).dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size((18 * scaleFactor).dp)
+                            )
+                        }
                     }
                 }
             }
@@ -674,5 +842,29 @@ fun WardenProtocolSegmentedControl(
                 )
             }
         }
+    }
+}
+
+// --- توابع فرمت‌کننده برای تایمر و حجم اینترنت ---
+private fun formatTime(seconds: Long): String {
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return String.format(Locale.ROOT, "%02d:%02d:%02d", h, m, s)
+}
+
+private fun formatTrafficBytes(bytes: Long): String {
+    val safeBytes = bytes.coerceAtLeast(0)
+    val units = arrayOf("B", "KB", "MB", "GB", "TB", "PB")
+    var value = safeBytes.toDouble()
+    var unitIndex = 0
+    while (value >= 1024.0 && unitIndex < units.lastIndex) {
+        value /= 1024.0
+        unitIndex += 1
+    }
+    return if (unitIndex == 0) {
+        "$safeBytes ${units[unitIndex]}"
+    } else {
+        String.format(Locale.ROOT, "%.2f %s", value, units[unitIndex])
     }
 }
