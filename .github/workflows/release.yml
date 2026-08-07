@@ -1,4 +1,4 @@
-name: Build & Release Multi-APK
+name: Build & Release Single-APK
 
 on:
   push:
@@ -34,31 +34,17 @@ jobs:
         run: |
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       
-      - name: Build Multi-APK with Gradle
+      - name: Build Single APK with Gradle
         run: ./gradlew assembleDebug
 
-      - name: Organize & Rename APKs
+      - name: Organize & Rename APK
         id: rename_apks
         run: |
           TAG_NAME=${GITHUB_REF#refs/tags/}
           RELEASE_DIR="${{ github.workspace }}/release-artifacts"
           mkdir -p "$RELEASE_DIR"
-          cd app/build/outputs/apk/debug/
           
-          for apk in *.apk; do
-            if [[ "$apk" == *"universal"* ]]; then
-              new_name="AetherST-Tunnel-${TAG_NAME}-universal.apk"
-            elif [[ "$apk" == *"arm64-v8a"* ]]; then
-              new_name="AetherST-Tunnel-${TAG_NAME}-arm64-v8a.apk"
-            elif [[ "$apk" == *"armeabi-v7a"* ]]; then
-              new_name="AetherST-Tunnel-${TAG_NAME}-armeabi-v7a.apk"
-            elif [[ "$apk" == *"x86_64"* ]]; then
-              new_name="AetherST-Tunnel-${TAG_NAME}-x86_64.apk"
-            else
-              new_name="AetherST-Tunnel-${TAG_NAME}-$(echo $apk | rev | cut -d'-' -f2 | rev).apk"
-            fi
-            cp "$apk" "$RELEASE_DIR/$new_name"
-          done
+          cp app/build/outputs/apk/debug/app-debug.apk "$RELEASE_DIR/AetherST-Tunnel-${TAG_NAME}-arm64-v8a.apk"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -69,3 +55,4 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
