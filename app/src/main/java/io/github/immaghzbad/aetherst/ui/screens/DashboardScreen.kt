@@ -464,11 +464,12 @@ fun WardenStatusHeroCard(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.primaryContainer
                     ) {
-                        val protocolText = if (config.protocol == AetherProtocol.MASQUE) {
-                            if (config.h2Mode) "MASQUE (H2)" else "MASQUE (H3)"
-                        } else {
-                            config.protocol.displayName
+                        val protocolText = when (config.protocol) {
+                            AetherProtocol.MASQUE -> if (config.h2Mode) "MASQUE (H2)" else "MASQUE (H3)"
+                            AetherProtocol.GOOL -> "Gool"
+                            else -> config.protocol.displayName
                         }
+                        
                         Text(
                             text = protocolText,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -809,7 +810,8 @@ fun WardenProtocolSegmentedControl(
     enabled: Boolean,
     scaleFactor: Float
 ) {
-    val protocols = AetherProtocol.values().toList()
+    // مخفی کردن Zero Trust از لیست ظاهری
+    val protocols = AetherProtocol.values().filter { it != AetherProtocol.ZERO_TRUST }
     
     Row(
         modifier = Modifier
@@ -824,6 +826,9 @@ fun WardenProtocolSegmentedControl(
             val bgColor by animateColorAsState(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, label = "")
             val contentColor by animateColorAsState(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, label = "")
             
+            // جایگزینی نام Gool (WG-in-WG) با فقط Gool
+            val displayText = if (protocol == AetherProtocol.GOOL) "Gool" else protocol.displayName
+            
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -834,7 +839,7 @@ fun WardenProtocolSegmentedControl(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = protocol.displayName,
+                    text = displayText,
                     color = contentColor,
                     fontSize = (12 * scaleFactor).sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
