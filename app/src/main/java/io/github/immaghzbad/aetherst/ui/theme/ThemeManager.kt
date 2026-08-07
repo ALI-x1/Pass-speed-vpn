@@ -7,7 +7,8 @@ import androidx.compose.runtime.setValue
 
 private const val PREFS_NAME = "aetherst_theme_prefs"
 private const val KEY_THEME_ID = "selected_theme_id"
-private const val DEFAULT_THEME_ID = "dark-purple"
+private const val DEFAULT_THEME_ID = "light-blue"
+
 
 object ThemeManager {
 
