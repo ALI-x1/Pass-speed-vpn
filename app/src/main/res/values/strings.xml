@@ -1,4 +1,5 @@
 <resources>
+    <!-- کلیدهای قبلی پروژه -->
     <string name="app_name">Warden VPN</string>
     <string name="widget_title">WARDEN</string>
     <string name="widget_status_disconnected">Disconnected</string>
@@ -6,4 +7,10 @@
     <string name="proto_masque">MASQUE</string>
     <string name="proto_wire">WIRE</string>
     <string name="proto_gool">GOOL</string>
+
+    <!-- کلیدهای جدید اضافه شده برای بخش زبان -->
+    <string name="language_title">App Language</string>
+    <string name="language_system">System Default</string>
+    <string name="language_english">English</string>
+    <string name="language_persian">Persian (فارسی)</string>
 </resources>
