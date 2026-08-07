@@ -46,7 +46,7 @@ class OnboardingViewModel(context: Context) : ViewModel() {
             OnboardingStep.WELCOME -> OnboardingStep.PROTOCOL_TEST
             OnboardingStep.PROTOCOL_TEST -> OnboardingStep.VPN_PERMISSION
             OnboardingStep.VPN_PERMISSION -> OnboardingStep.NOTIFICATION_PERMISSION
-            OnboardingStep.NOTIFICATION_PERMISSION -> OnboardingStep.BATTERY_OPTIMIZATION
+            OnboardingStep.NOTIFICATION_PERMISSION -> OnboardingStep.SUCCESS
             OnboardingStep.BATTERY_OPTIMIZATION -> OnboardingStep.SUCCESS
             OnboardingStep.SUCCESS -> OnboardingStep.COMPLETED
             OnboardingStep.COMPLETED -> OnboardingStep.COMPLETED
