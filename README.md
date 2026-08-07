@@ -116,7 +116,6 @@ Stay updated and get support through our official channels:
 
 ## ⚖️ License
 
-Developed by **PowerSigma Team**.
 - **Aether Core** is property of CluvexStudio.
 - **HEV SOCKS5 Tunnel** is used under the MIT License.
 - **AetherST Source** is available for educational use and contributions. Redistribution is permitted only with clear attribution and a link to this repository.
