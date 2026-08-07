@@ -1,5 +1,6 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -26,15 +27,27 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.os.LocaleListCompat
+import io.github.immaghzbad.aetherst.R
 import io.github.immaghzbad.aetherst.core.NetworkUtils
 import io.github.immaghzbad.aetherst.model.*
 
-// رنگ‌های داینامیک و متصل به تم اپلیکیشن
+// تابع کمکی برای تغییر زبان برنامه‌ی اندروید
+fun setAppLanguage(languageCode: String) {
+    val localeList = if (languageCode.isEmpty()) {
+        LocaleListCompat.getEmptyLocaleList()
+    } else {
+        LocaleListCompat.forLanguageTags(languageCode)
+    }
+    AppCompatDelegate.setApplicationLocales(localeList)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -66,8 +79,9 @@ fun SettingsScreen(
     // وضعیت‌های باز و بسته بودن منوهای فشرده (پاپ‌آپ‌ها)
     var showProfilesSheet by remember { mutableStateOf(false) }
     var showConnectionSheet by remember { mutableStateOf(false) }
+    var showLanguageSheet by remember { mutableStateOf(false) }
 
-    // اتصال رنگ‌ها به تم اصلی متریال دیزاین تا با تغییر تم عوض شوند
+    // اتصال رنگ‌ها به تم اصلی متریال دیزاین
     val bgColor = MaterialTheme.colorScheme.background
     val cardBg = MaterialTheme.colorScheme.surface
     val groupBg = MaterialTheme.colorScheme.surfaceVariant
@@ -76,6 +90,14 @@ fun SettingsScreen(
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
     val activeColor = MaterialTheme.colorScheme.primary
 
+    // نمایش زبان فعلی انتخاب شده
+    val currentLocale = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+    val currentLanguageDisplay = when {
+        currentLocale.startsWith("fa") -> "فارسی"
+        currentLocale.startsWith("en") -> "English"
+        else -> stringResource(R.string.language_system)
+    }
+
     val fullBackupPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent(),
     ) { uri -> uri?.let { onImportBackup(it) } }
@@ -83,7 +105,7 @@ fun SettingsScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(bgColor) // رفع مشکل تم مشکی ثابت
+            .background(bgColor)
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
@@ -184,28 +206,40 @@ fun SettingsScreen(
                 )
             }
 
-            // گزینه اول: تم‌ها (Themes)
-            if (searchQuery.isEmpty() || "Themes Appearance".contains(searchQuery, ignoreCase = true)) {
+            // بخش تم‌ها و زبان (APPEARANCE & LANGUAGE)
+            if (searchQuery.isEmpty() || "Themes Appearance Language زبان".contains(searchQuery, ignoreCase = true)) {
                 item {
-                    IosSectionHeader(title = "APPEARANCE", scaleFactor = scaleFactor, color = secondaryText)
+                    IosSectionHeader(title = "APPEARANCE & LANGUAGE", scaleFactor = scaleFactor, color = secondaryText)
                     IosGroupCard(cardBg = cardBg) {
-                        IosPresetItem(
-                            icon = Icons.Default.Palette, iconBg = Color(0xFF007AFF),
-                            title = "Themes", subtitle = "Customize application appearance",
-                            isActive = false, onClick = onOpenThemes, scaleFactor = scaleFactor,
-                            textColor = primaryText, subTextColor = secondaryText
-                        )
+                        Column {
+                            // ۱. گزینه تم‌ها
+                            IosPresetItem(
+                                icon = Icons.Default.Palette, iconBg = Color(0xFF007AFF),
+                                title = "Themes", subtitle = "Customize application appearance",
+                                isActive = false, onClick = onOpenThemes, scaleFactor = scaleFactor,
+                                textColor = primaryText, subTextColor = secondaryText
+                            )
+
+                            HorizontalDivider(color = dividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = 64.dp))
+
+                            // ۲. گزینه زبان (دقیقاً زیر تم‌ها)
+                            IosPresetItem(
+                                icon = Icons.Default.Language, iconBg = Color(0xFFFF2D55),
+                                title = stringResource(R.string.language_title), subtitle = currentLanguageDisplay,
+                                isActive = false, onClick = { showLanguageSheet = true }, scaleFactor = scaleFactor,
+                                textColor = primaryText, subTextColor = secondaryText
+                            )
+                        }
                     }
                 }
             }
 
-            // گزینه‌های فشرده شده (آبی و قرمز)
+            // گزینه‌های پیکربندی (CONFIGURATION)
             if (searchQuery.isEmpty() || "Preset Profiles Custom Manual Tweaks Connection".contains(searchQuery, ignoreCase = true)) {
                 item {
                     IosSectionHeader(title = "CONFIGURATION", scaleFactor = scaleFactor, color = secondaryText)
                     IosGroupCard(cardBg = cardBg) {
                         Column {
-                            // گزینه فشرده بخش آبی (Profiles)
                             IosPresetItem(
                                 icon = Icons.Default.Tune, iconBg = Color(0xFF5856D6),
                                 title = "Preset Profiles", subtitle = "Select configuration presets",
@@ -215,7 +249,6 @@ fun SettingsScreen(
                             
                             HorizontalDivider(color = dividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = 64.dp))
                             
-                            // گزینه فشرده بخش قرمز (Connection & Routing)
                             IosPresetItem(
                                 icon = Icons.Default.Router, iconBg = Color(0xFFFF9500),
                                 title = "Connection & Routing", subtitle = "Engine, Protocols & Transport",
@@ -227,7 +260,7 @@ fun SettingsScreen(
                 }
             }
 
-            // سایر گزینه‌ها
+            // سایر گزینه‌ها (APP SETTINGS & INFO)
             if (searchQuery.isEmpty() || "Logs About".contains(searchQuery, ignoreCase = true)) {
                 item {
                     IosSectionHeader(title = "APP SETTINGS & INFO", scaleFactor = scaleFactor, color = secondaryText)
@@ -252,7 +285,63 @@ fun SettingsScreen(
             }
         }
 
-        // ====== پاپ آپ پروفایل‌ها (بخش آبی سابق) ======
+        // ====== پاپ آپ انتخاب زبان ======
+        if (showLanguageSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showLanguageSheet = false },
+                containerColor = bgColor,
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ) {
+                Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                    Text(
+                        text = stringResource(R.string.language_title),
+                        color = primaryText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        textAlign = TextAlign.Center
+                    )
+
+                    // ۱. پیش‌فرض سیستم
+                    IosPresetItem(
+                        icon = Icons.Default.SettingsSuggest, iconBg = Color(0xFF8E8E93),
+                        title = stringResource(R.string.language_system), subtitle = "Follow system settings",
+                        isActive = currentLocale.isEmpty(),
+                        onClick = {
+                            setAppLanguage("")
+                            showLanguageSheet = false
+                        },
+                        scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                    )
+
+                    // ۲. انگلیسی
+                    IosPresetItem(
+                        icon = Icons.Default.Language, iconBg = Color(0xFF007AFF),
+                        title = stringResource(R.string.language_english), subtitle = "English (US)",
+                        isActive = currentLocale.startsWith("en"),
+                        onClick = {
+                            setAppLanguage("en")
+                            showLanguageSheet = false
+                        },
+                        scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                    )
+
+                    // ۳. فارسی
+                    IosPresetItem(
+                        icon = Icons.Default.Language, iconBg = Color(0xFF34C759),
+                        title = stringResource(R.string.language_persian), subtitle = "فارسی",
+                        isActive = currentLocale.startsWith("fa"),
+                        onClick = {
+                            setAppLanguage("fa")
+                            showLanguageSheet = false
+                        },
+                        scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
+                    )
+                }
+            }
+        }
+
+        // ====== پاپ آپ پروفایل‌ها ======
         if (showProfilesSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showProfilesSheet = false },
@@ -300,7 +389,7 @@ fun SettingsScreen(
             }
         }
 
-        // ====== پاپ آپ تنظیمات اتصال (بخش قرمز سابق) ======
+        // ====== پاپ آپ تنظیمات اتصال ======
         if (showConnectionSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showConnectionSheet = false },
