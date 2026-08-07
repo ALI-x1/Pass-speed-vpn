@@ -2,11 +2,13 @@ package io.github.immaghzbad.aetherst.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,8 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -428,7 +436,6 @@ fun WardenStatusHeroCard(
                 .padding((14 * scaleFactor).dp)
         ) {
             Column {
-                // --- بخش وضعیت بالا (Finding Servers / Protocol) ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -483,7 +490,6 @@ fun WardenStatusHeroCard(
 
                 Spacer(modifier = Modifier.height((16 * scaleFactor).dp))
 
-                // --- تایمر و پینگ ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -538,7 +544,6 @@ fun WardenStatusHeroCard(
 
                 Spacer(modifier = Modifier.height((14 * scaleFactor).dp))
 
-                // --- سرعت آپلود و دانلود ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -579,7 +584,6 @@ fun WardenStatusHeroCard(
 
                 Spacer(modifier = Modifier.height((12 * scaleFactor).dp))
 
-                // --- کارت آی پی و کشور زنده ---
                 val clipboardManager = LocalClipboardManager.current
                 Surface(
                     modifier = Modifier
@@ -664,13 +668,12 @@ fun WardenPowerButton(
     val isError = connectionStatus == ConnectionStatus.ERROR
 
     val appTheme = LocalAppTheme.current
+    val isDark = isSystemInDarkTheme()
 
-    // حالت خاموش: رنگ از تم متریال انتخابی میاد (Classic Glow)
+    // پالت رنگ اختصاصی منطبق بر طرح HTML
     val themeAccentColor = MaterialTheme.colorScheme.primary
-
-    // حالت‌های در-حال-اتصال و متصل: رنگ ثابت، مستقل از تم انتخابی
-    val connectingColor = Color(0xFFF59E0B)
-    val connectedColor = Color(0xFF22C55E)
+    val connectingColor = Color(0xFFF59E0B) // Amber
+    val connectedColor = Color(0xFF10B981)  // Emerald
 
     // انیمیشن نرم برای رنگ اصلی براساس وضعیت
     val mainColor by animateColorAsState(
@@ -684,38 +687,53 @@ fun WardenPowerButton(
         label = "MainColorAnimation"
     )
 
-    // پس‌زمینه داخلی دکمه: سفید در حالت خاموش، هم‌رنگ ملایم وضعیت در بقیه حالت‌ها
+    // هاله‌ی قدرتمند (Vibrant Glow)
+    val glowColor by animateColorAsState(
+        targetValue = when {
+            isRunning -> connectedColor.copy(alpha = 0.65f)
+            isConnecting -> connectingColor.copy(alpha = 0.65f)
+            isError -> appTheme.error.copy(alpha = 0.65f)
+            else -> themeAccentColor.copy(alpha = 0.65f)
+        },
+        animationSpec = tween(durationMillis = 500),
+        label = "GlowColorAnimation"
+    )
+
+    // پس‌زمینه داخلی دکمه
     val containerColor by animateColorAsState(
         targetValue = when {
-            isRunning -> connectedColor.copy(alpha = 0.08f)
-            isConnecting -> connectingColor.copy(alpha = 0.08f)
-            isError -> appTheme.error.copy(alpha = 0.08f)
-            else -> Color.White
+            isRunning -> mainColor.copy(alpha = if (isDark) 0.1f else 0.05f)
+            isConnecting -> mainColor.copy(alpha = if (isDark) 0.1f else 0.05f)
+            isError -> mainColor.copy(alpha = if (isDark) 0.1f else 0.05f)
+            else -> if (isDark) mainColor.copy(alpha = 0.05f) else Color.White
         },
         animationSpec = tween(durationMillis = 400),
         label = "ContainerColorAnimation"
     )
 
-    // هاله‌ی نرم پشت دکمه (Glow) - همیشه نمایش داده می‌شود، هم‌رنگ وضعیت فعلی
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (isRunning) 0.32f else if (isConnecting) 0.30f else 0.26f,
-        animationSpec = tween(durationMillis = 500),
-        label = "GlowAlpha"
-    )
-
     val infiniteTransition = rememberInfiniteTransition(label = "PowerButtonTransition")
 
-    // حلقه‌ی چرخان دور دکمه، فقط موقع در حال اتصال
-    val spinAngle by infiniteTransition.animateFloat(
+    // انیمیشن‌های مربوط به مدار چرخان (Orbital Tracer)
+    val orbitRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1000, easing = LinearEasing)
+            animation = tween(durationMillis = 2000, easing = LinearEasing)
         ),
-        label = "SpinRing"
+        label = "OrbitRotation"
+    )
+    
+    val orbitSweep by infiniteTransition.animateFloat(
+        initialValue = 10f,
+        targetValue = 280f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "OrbitSweep"
     )
 
-    // پالس آیکون شیلد، فقط موقع در حال اتصال
+    // پالس آیکون شیلد
     val iconAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (isConnecting) 0.5f else 1f,
@@ -738,27 +756,81 @@ fun WardenPowerButton(
         label = "ClickScale"
     )
 
+    // ساخت Paths برای لوگوی اختصاصی (بدون نیاز به کتابخونه‌های خارجی یا فایل‌های وکتور)
+    val shieldPath = remember {
+        Path().apply {
+            moveTo(12f, 22f)
+            cubicTo(12f, 22f, 20f, 18f, 20f, 10f)
+            lineTo(20f, 5f)
+            lineTo(12f, 2f)
+            lineTo(4f, 5f)
+            lineTo(4f, 10f)
+            cubicTo(4f, 18f, 12f, 22f, 12f, 22f)
+            close()
+        }
+    }
+    val wPath = remember {
+        Path().apply {
+            moveTo(7.5f, 9.5f)
+            lineTo(10f, 15f)
+            lineTo(12f, 11f)
+            lineTo(14f, 15f)
+            lineTo(16.5f, 9.5f)
+        }
+    }
+
+    // ایجاد فضای بیشتر برای هاله و مدارها
     Box(
-        modifier = Modifier.size(size * 1.6f), // ایجاد فضای بیشتر برای هاله
+        modifier = Modifier.size(size * 1.6f),
         contentAlignment = Alignment.Center
     ) {
-        // هاله‌ی نورانی پشت دکمه (Glow) - در همه حالت‌ها، هم‌رنگ وضعیت فعلی
+        // 1. هاله‌ی نورانی پشت دکمه (Vibrant Glow)
         Box(
             modifier = Modifier
-                .size(size * 1.5f)
+                .size(size * 1.6f)
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            mainColor.copy(alpha = glowAlpha),
-                            mainColor.copy(alpha = glowAlpha * 0.35f),
-                            mainColor.copy(alpha = 0f)
+                            glowColor,
+                            glowColor.copy(alpha = 0.3f),
+                            Color.Transparent
                         )
                     )
                 )
         )
 
-        // موج‌های ریپل هنگام لمس
+        // 2. لایه افکت شیشه‌ای (Liquid Glass Layer)
+        val glassColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.6f)
+        Box(
+            modifier = Modifier
+                .size(size * 1.3f)
+                .clip(CircleShape)
+                .background(glassColor)
+                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+        )
+
+        // 3. انیمیشن مدار چرخان (Orbital Tracer) فقط در زمان اتصال
+        if (isConnecting) {
+            Canvas(
+                modifier = Modifier
+                    .size(size * 1.15f)
+                    .graphicsLayer { rotationZ = orbitRotation }
+            ) {
+                drawArc(
+                    color = mainColor,
+                    startAngle = 0f,
+                    sweepAngle = orbitSweep,
+                    useCenter = false,
+                    style = Stroke(
+                        width = 3.dp.toPx(), 
+                        cap = StrokeCap.Round
+                    )
+                )
+            }
+        }
+
+        // موج‌های لمس (Ripples)
         ripples.forEach { anim ->
             Box(
                 modifier = Modifier
@@ -769,24 +841,7 @@ fun WardenPowerButton(
             )
         }
 
-        // حلقه‌ی چرخان دور دکمه، فقط موقع در حال اتصال
-        if (isConnecting) {
-            Box(
-                modifier = Modifier
-                    .size(size + 6.dp)
-                    .graphicsLayer { rotationZ = spinAngle }
-                    .clip(CircleShape)
-                    .border(
-                        width = 3.dp,
-                        brush = Brush.sweepGradient(
-                            colors = listOf(Color.Transparent, mainColor, mainColor, Color.Transparent)
-                        ),
-                        shape = CircleShape
-                    )
-            )
-        }
-
-        // هسته دکمه تعاملی
+        // 4. هسته دکمه تعاملی (Main Button Core)
         Box(
             modifier = Modifier
                 .size(size)
@@ -824,29 +879,46 @@ fun WardenPowerButton(
                 }
             }
 
-            // آیکون شیلد و متن وضعیت (بدون نمایش Loading جدا، دقیقا مطابق نمونه‌ی Classic Glow)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Shield,
-                    contentDescription = if (isRunning) "Disconnect" else "Connect",
-                    tint = mainColor,
+                // رندر کردن لوگوی اختصاصی و زاویه‌دار W به صورت Native
+                Canvas(
                     modifier = Modifier
                         .size(size * 0.32f)
                         .graphicsLayer { alpha = iconAlpha }
-                )
+                ) {
+                    val s = this.size.width / 24f
+                    withTransform({
+                        scale(s, s, pivot = Offset.Zero)
+                    }) {
+                        // کشیدن سپر
+                        drawPath(
+                            path = shieldPath,
+                            color = mainColor,
+                            style = Stroke(width = 1.5f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                            alpha = 0.85f
+                        )
+                        // کشیدن حرف W
+                        drawPath(
+                            path = wPath,
+                            color = mainColor,
+                            style = Stroke(width = 2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                    }
+                }
+                
                 Spacer(modifier = Modifier.height(10.dp))
-                // متن انگلیسی و بزرگ‌حروف، مطابق سبک اپ‌های معروف VPN (NordVPN / ExpressVPN و ...)
+                
                 Text(
                     text = when {
-                        isConnecting -> "CONNECTING..."
+                        isConnecting -> "CONNECTING"
                         isRunning -> "DISCONNECT"
                         else -> "CONNECT"
                     },
                     color = mainColor,
-                    fontSize = (size.value * 0.105f).sp, // فونت داینامیک براساس سایز
+                    fontSize = (size.value * 0.105f).sp, 
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.2.sp,
                     maxLines = 1,
@@ -864,7 +936,6 @@ fun WardenProtocolSegmentedControl(
     enabled: Boolean,
     scaleFactor: Float
 ) {
-    // مخفی کردن Zero Trust از لیست ظاهری
     val protocols = AetherProtocol.values().filter { it != AetherProtocol.ZERO_TRUST }
     
     Row(
@@ -880,7 +951,6 @@ fun WardenProtocolSegmentedControl(
             val bgColor by animateColorAsState(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, label = "")
             val contentColor by animateColorAsState(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, label = "")
             
-            // جایگزینی نام Gool (WG-in-WG) با فقط Gool
             val displayText = if (protocol == AetherProtocol.GOOL) "Gool" else protocol.displayName
             
             Box(
@@ -904,7 +974,6 @@ fun WardenProtocolSegmentedControl(
     }
 }
 
-// --- توابع فرمت‌کننده برای تایمر و حجم اینترنت ---
 private fun formatTime(seconds: Long): String {
     val h = seconds / 3600
     val m = (seconds % 3600) / 60
