@@ -20,7 +20,8 @@ android {
 
     externalNativeBuild {
       ndkBuild {
-        abiFilters("armeabi-v7a", "arm64-v8a", "x86_64")
+        // فقط معماری arm64-v8a کامپایل می‌شود تا سرعت بیلد ۳ برابر شود
+        abiFilters("arm64-v8a")
       }
     }
   }
@@ -63,12 +64,10 @@ android {
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
 
+  // غیرفعال کردن Split برای جلوگیری از ساخت چند APK مجزا
   splits {
     abi {
-      isEnable = true
-      reset()
-      include("armeabi-v7a", "arm64-v8a", "x86_64")
-      isUniversalApk = true
+      isEnable = false
     }
   }
 
@@ -90,7 +89,6 @@ android {
 }
 
 dependencies {
-  // این خط برای رفع خطای appcompat اضافه شد
   implementation("androidx.appcompat:appcompat:1.7.0") 
   
   implementation(platform(libs.androidx.compose.bom))
