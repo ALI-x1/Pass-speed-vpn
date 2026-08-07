@@ -1,6 +1,5 @@
 package io.github.immaghzbad.aetherst.ui.screens
 
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -25,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -33,20 +33,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.LocaleManagerCompat
 import androidx.core.os.LocaleListCompat
 import io.github.immaghzbad.aetherst.R
 import io.github.immaghzbad.aetherst.core.NetworkUtils
 import io.github.immaghzbad.aetherst.model.*
-
-// تابع کمکی برای تغییر زبان برنامه‌ی اندروید
-fun setAppLanguage(languageCode: String) {
-    val localeList = if (languageCode.isEmpty()) {
-        LocaleListCompat.getEmptyLocaleList()
-    } else {
-        LocaleListCompat.forLanguageTags(languageCode)
-    }
-    AppCompatDelegate.setApplicationLocales(localeList)
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +64,7 @@ fun SettingsScreen(
     onOpenAbout: () -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
 ) {
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var searchQuery by remember { mutableStateOf("") }
     
@@ -80,6 +72,16 @@ fun SettingsScreen(
     var showProfilesSheet by remember { mutableStateOf(false) }
     var showConnectionSheet by remember { mutableStateOf(false) }
     var showLanguageSheet by remember { mutableStateOf(false) }
+
+    // تغییر زبان استاندارد بدون نیاز به AppCompat
+    fun setAppLanguage(languageCode: String) {
+        val localeList = if (languageCode.isEmpty()) {
+            LocaleListCompat.getEmptyLocaleList()
+        } else {
+            LocaleListCompat.forLanguageTags(languageCode)
+        }
+        LocaleManagerCompat.setApplicationLocales(context, localeList)
+    }
 
     // اتصال رنگ‌ها به تم اصلی متریال دیزاین
     val bgColor = MaterialTheme.colorScheme.background
@@ -91,7 +93,7 @@ fun SettingsScreen(
     val activeColor = MaterialTheme.colorScheme.primary
 
     // نمایش زبان فعلی انتخاب شده
-    val currentLocale = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+    val currentLocale = LocaleManagerCompat.getApplicationLocales(context).toLanguageTags()
     val currentLanguageDisplay = when {
         currentLocale.startsWith("fa") -> "فارسی"
         currentLocale.startsWith("en") -> "English"
