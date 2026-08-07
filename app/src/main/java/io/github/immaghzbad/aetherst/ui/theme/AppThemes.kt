@@ -185,4 +185,5 @@ val AppThemes: List<AppTheme> = listOf(
     AppTheme("dark-purple", "بنفش تیره", "🔮", true, DarkPurpleScheme, GenericConnected, GenericScanning, GenericError),
 )
 
-val LocalAppTheme = staticCompositionLocalOf { AppThemes.last() }
+val LocalAppTheme = staticCompositionLocalOf { AppThemes.first { it.id == "light-blue" } }
+
