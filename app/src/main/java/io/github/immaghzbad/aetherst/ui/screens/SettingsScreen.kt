@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -35,10 +34,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.LocaleManagerCompat
 import androidx.core.os.LocaleListCompat
-import io.github.immaghzbad.aetherst.R
 import io.github.immaghzbad.aetherst.core.NetworkUtils
 import io.github.immaghzbad.aetherst.model.*
 
+// رنگ‌های داینامیک و متصل به تم اپلیکیشن
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -73,7 +72,14 @@ fun SettingsScreen(
     var showConnectionSheet by remember { mutableStateOf(false) }
     var showLanguageSheet by remember { mutableStateOf(false) }
 
-    // تغییر زبان استاندارد بدون نیاز به AppCompat
+    // توابع و متغیرهای مربوط به تغییر زبان بدون نیاز به AppCompat
+    val currentLocale = LocaleManagerCompat.getApplicationLocales(context).toLanguageTags()
+    val currentLanguageDisplay = when {
+        currentLocale.startsWith("fa") -> "فارسی"
+        currentLocale.startsWith("en") -> "English"
+        else -> "System Default"
+    }
+
     fun setAppLanguage(languageCode: String) {
         val localeList = if (languageCode.isEmpty()) {
             LocaleListCompat.getEmptyLocaleList()
@@ -83,7 +89,7 @@ fun SettingsScreen(
         LocaleManagerCompat.setApplicationLocales(context, localeList)
     }
 
-    // اتصال رنگ‌ها به تم اصلی متریال دیزاین
+    // اتصال رنگ‌ها به تم اصلی متریال دیزاین تا با تغییر تم عوض شوند
     val bgColor = MaterialTheme.colorScheme.background
     val cardBg = MaterialTheme.colorScheme.surface
     val groupBg = MaterialTheme.colorScheme.surfaceVariant
@@ -92,14 +98,6 @@ fun SettingsScreen(
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
     val activeColor = MaterialTheme.colorScheme.primary
 
-    // نمایش زبان فعلی انتخاب شده
-    val currentLocale = LocaleManagerCompat.getApplicationLocales(context).toLanguageTags()
-    val currentLanguageDisplay = when {
-        currentLocale.startsWith("fa") -> "فارسی"
-        currentLocale.startsWith("en") -> "English"
-        else -> stringResource(R.string.language_system)
-    }
-
     val fullBackupPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent(),
     ) { uri -> uri?.let { onImportBackup(it) } }
@@ -107,7 +105,7 @@ fun SettingsScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(bgColor)
+            .background(bgColor) // رفع مشکل تم مشکی ثابت
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
@@ -208,40 +206,39 @@ fun SettingsScreen(
                 )
             }
 
-            // بخش تم‌ها و زبان (APPEARANCE & LANGUAGE)
+            // گزینه اول: تم‌ها و زبان (Themes & Language)
             if (searchQuery.isEmpty() || "Themes Appearance Language زبان".contains(searchQuery, ignoreCase = true)) {
                 item {
                     IosSectionHeader(title = "APPEARANCE & LANGUAGE", scaleFactor = scaleFactor, color = secondaryText)
                     IosGroupCard(cardBg = cardBg) {
                         Column {
-                            // ۱. گزینه تم‌ها
                             IosPresetItem(
                                 icon = Icons.Default.Palette, iconBg = Color(0xFF007AFF),
                                 title = "Themes", subtitle = "Customize application appearance",
                                 isActive = false, onClick = onOpenThemes, scaleFactor = scaleFactor,
                                 textColor = primaryText, subTextColor = secondaryText
                             )
-
+                            
                             HorizontalDivider(color = dividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = 64.dp))
-
-                            // ۲. گزینه زبان (دقیقاً زیر تم‌ها)
+                            
                             IosPresetItem(
                                 icon = Icons.Default.Language, iconBg = Color(0xFFFF2D55),
-                                title = stringResource(R.string.language_title), subtitle = currentLanguageDisplay,
-                                isActive = false, onClick = { showLanguageSheet = true }, scaleFactor = scaleFactor,
-                                textColor = primaryText, subTextColor = secondaryText
+                                title = "Language / زبان برنامه", subtitle = currentLanguageDisplay,
+                                isActive = false, onClick = { showLanguageSheet = true },
+                                scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
                             )
                         }
                     }
                 }
             }
 
-            // گزینه‌های پیکربندی (CONFIGURATION)
+            // گزینه‌های فشرده شده (آبی و قرمز)
             if (searchQuery.isEmpty() || "Preset Profiles Custom Manual Tweaks Connection".contains(searchQuery, ignoreCase = true)) {
                 item {
                     IosSectionHeader(title = "CONFIGURATION", scaleFactor = scaleFactor, color = secondaryText)
                     IosGroupCard(cardBg = cardBg) {
                         Column {
+                            // گزینه فشرده بخش آبی (Profiles)
                             IosPresetItem(
                                 icon = Icons.Default.Tune, iconBg = Color(0xFF5856D6),
                                 title = "Preset Profiles", subtitle = "Select configuration presets",
@@ -251,6 +248,7 @@ fun SettingsScreen(
                             
                             HorizontalDivider(color = dividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = 64.dp))
                             
+                            // گزینه فشرده بخش قرمز (Connection & Routing)
                             IosPresetItem(
                                 icon = Icons.Default.Router, iconBg = Color(0xFFFF9500),
                                 title = "Connection & Routing", subtitle = "Engine, Protocols & Transport",
@@ -262,7 +260,7 @@ fun SettingsScreen(
                 }
             }
 
-            // سایر گزینه‌ها (APP SETTINGS & INFO)
+            // سایر گزینه‌ها
             if (searchQuery.isEmpty() || "Logs About".contains(searchQuery, ignoreCase = true)) {
                 item {
                     IosSectionHeader(title = "APP SETTINGS & INFO", scaleFactor = scaleFactor, color = secondaryText)
@@ -286,7 +284,7 @@ fun SettingsScreen(
                 }
             }
         }
-
+        
         // ====== پاپ آپ انتخاب زبان ======
         if (showLanguageSheet) {
             ModalBottomSheet(
@@ -296,7 +294,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(bottom = 24.dp)) {
                     Text(
-                        text = stringResource(R.string.language_title),
+                        text = "زبان / Language",
                         color = primaryText,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
@@ -304,10 +302,9 @@ fun SettingsScreen(
                         textAlign = TextAlign.Center
                     )
 
-                    // ۱. پیش‌فرض سیستم
                     IosPresetItem(
                         icon = Icons.Default.SettingsSuggest, iconBg = Color(0xFF8E8E93),
-                        title = stringResource(R.string.language_system), subtitle = "Follow system settings",
+                        title = "System Default", subtitle = "زبان سیستم گوشی",
                         isActive = currentLocale.isEmpty(),
                         onClick = {
                             setAppLanguage("")
@@ -316,10 +313,9 @@ fun SettingsScreen(
                         scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
                     )
 
-                    // ۲. انگلیسی
                     IosPresetItem(
                         icon = Icons.Default.Language, iconBg = Color(0xFF007AFF),
-                        title = stringResource(R.string.language_english), subtitle = "English (US)",
+                        title = "English", subtitle = "انگلیسی",
                         isActive = currentLocale.startsWith("en"),
                         onClick = {
                             setAppLanguage("en")
@@ -328,10 +324,9 @@ fun SettingsScreen(
                         scaleFactor = scaleFactor, textColor = primaryText, subTextColor = secondaryText
                     )
 
-                    // ۳. فارسی
                     IosPresetItem(
                         icon = Icons.Default.Language, iconBg = Color(0xFF34C759),
-                        title = stringResource(R.string.language_persian), subtitle = "فارسی",
+                        title = "فارسی", subtitle = "Persian",
                         isActive = currentLocale.startsWith("fa"),
                         onClick = {
                             setAppLanguage("fa")
@@ -343,7 +338,7 @@ fun SettingsScreen(
             }
         }
 
-        // ====== پاپ آپ پروفایل‌ها ======
+        // ====== پاپ آپ پروفایل‌ها (بخش آبی سابق) ======
         if (showProfilesSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showProfilesSheet = false },
@@ -391,7 +386,7 @@ fun SettingsScreen(
             }
         }
 
-        // ====== پاپ آپ تنظیمات اتصال ======
+        // ====== پاپ آپ تنظیمات اتصال (بخش قرمز سابق) ======
         if (showConnectionSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showConnectionSheet = false },
