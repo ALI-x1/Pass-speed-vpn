@@ -67,7 +67,8 @@ class AetherTileService : TileService() {
 
     private fun updateTile(state: ConnectionStatus) {
         val tile = qsTile ?: return
-        tile.icon = Icon.createWithResource(this, R.drawable.ic_stat_aether)
+        // آیکون در اینجا اصلاح شد
+        tile.icon = Icon.createWithResource(this, R.drawable.ic_stat_warden)
         
         when (state) {
             ConnectionStatus.RUNNING -> {
