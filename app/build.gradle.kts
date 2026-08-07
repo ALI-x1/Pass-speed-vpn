@@ -20,7 +20,6 @@ android {
 
     externalNativeBuild {
       ndkBuild {
-        // فقط معماری arm64-v8a کامپایل می‌شود تا سرعت بیلد ۳ برابر شود
         abiFilters("arm64-v8a")
       }
     }
@@ -64,7 +63,6 @@ android {
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
 
-  // غیرفعال کردن Split برای جلوگیری از ساخت چند APK مجزا
   splits {
     abi {
       isEnable = false
