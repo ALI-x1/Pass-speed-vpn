@@ -223,7 +223,7 @@ class AetherVpnService : VpnService() {
             .addDnsServer("2606:4700:4700::1111")
             .addDnsServer("2001:4860:4860::8888")
             .setMtu(1280)
-            .setSession("AetherST Tunnel")
+            .setSession(getString(R.string.app_name))
             .setConfigureIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), pendingFlags))
 
         val config = AetherConfigRepository.getInstance(this).config.value
@@ -352,9 +352,9 @@ class AetherVpnService : VpnService() {
         val stopIntent = PendingIntent.getService(this, 1, Intent(this, AetherVpnService::class.java).apply { action = ACTION_STOP }, flags)
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("AetherST Tunnel")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(statusText)
-            .setSmallIcon(R.drawable.ic_stat_aether)
+            .setSmallIcon(R.drawable.ic_stat_warden)
             .setOngoing(true)
             .setContentIntent(contentIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", stopIntent)
@@ -366,7 +366,7 @@ class AetherVpnService : VpnService() {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, "AetherST Tunnel", NotificationManager.IMPORTANCE_DEFAULT).apply {
+        val channel = NotificationChannel(CHANNEL_ID, getString(R.string.app_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
             setSound(null, null)
             enableVibration(false)
             enableLights(false)
