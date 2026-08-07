@@ -62,14 +62,14 @@ fun ThemeSelectionScreen(
             }
         }
         Text(
-            text = "انتخاب تم",
+            text = "Choose a theme",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "${AppThemes.size} تم موجود · شبیه تلگرام",
+            text = "${AppThemes.size} ",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
