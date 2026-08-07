@@ -13,7 +13,7 @@ import androidx.core.view.WindowCompat
 
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
