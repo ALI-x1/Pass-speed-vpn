@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/AetherST-Tunnel-007AFF?style=for-the-badge&logo=shield&logoColor=white" alt="AetherST Logo" width="200">
+  <img src="https://img.shields.io/badge/Warden VPN-007AFF?style=for-the-badge&logo=shield&logoColor=white" alt="AetherST Logo" width="200">
 </p>
 
-<h1 align="center">AetherST Tunnel</h1>
+<h1 align="center">Warden VPN</h1>
 
 <p align="center">
   <strong>Advanced, High-Performance Censorship Circumvention Client for Android</strong>
