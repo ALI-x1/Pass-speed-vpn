@@ -687,7 +687,7 @@ fun WardenPowerButton(
         label = "MainColorAnimation"
     )
 
-    // هاله‌ی قدرتمند (Vibrant Glow)
+    // هاله‌ی قدرتمند و شاداب (Vibrant Glow)
     val glowColor by animateColorAsState(
         targetValue = when {
             isRunning -> connectedColor.copy(alpha = 0.65f)
@@ -695,17 +695,20 @@ fun WardenPowerButton(
             isError -> appTheme.error.copy(alpha = 0.65f)
             else -> themeAccentColor.copy(alpha = 0.65f)
         },
-        animationSpec = tween(durationMillis = 500),
+        animationSpec = tween(durationMillis = 600, easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)),
         label = "GlowColorAnimation"
     )
 
-    // پس‌زمینه داخلی دکمه
+    // پس‌زمینه لایه شیشه‌ای داخلی (Fluid Glass)
+    val glassBgColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.6f)
+
+    // پس‌زمینه هسته دکمه بر اساس وضعیت (جلوگیری کامل از سفید شدن در دارک‌مود)
     val containerColor by animateColorAsState(
         targetValue = when {
-            isRunning -> mainColor.copy(alpha = if (isDark) 0.1f else 0.05f)
-            isConnecting -> mainColor.copy(alpha = if (isDark) 0.1f else 0.05f)
-            isError -> mainColor.copy(alpha = if (isDark) 0.1f else 0.05f)
-            else -> if (isDark) mainColor.copy(alpha = 0.05f) else Color.White
+            isRunning -> connectedColor.copy(alpha = if (isDark) 0.1f else 0.05f)
+            isConnecting -> connectingColor.copy(alpha = if (isDark) 0.05f else 0.05f)
+            isError -> appTheme.error.copy(alpha = if (isDark) 0.1f else 0.05f)
+            else -> if (isDark) themeAccentColor.copy(alpha = 0.05f) else Color.White
         },
         animationSpec = tween(durationMillis = 400),
         label = "ContainerColorAnimation"
@@ -713,7 +716,7 @@ fun WardenPowerButton(
 
     val infiniteTransition = rememberInfiniteTransition(label = "PowerButtonTransition")
 
-    // انیمیشن‌های مربوط به مدار چرخان (Orbital Tracer)
+    // انیمیشن مدار چرخان (Orbital Spinner) کاملاً منطبق بر HTML
     val orbitRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -723,32 +726,32 @@ fun WardenPowerButton(
         label = "OrbitRotation"
     )
     
-    val orbitSweep by infiniteTransition.animateFloat(
-        initialValue = 10f,
-        targetValue = 280f,
+    // انیمیشن کش آمدن و جمع شدن خط مدار (DashOffset & DashArray مشابه افکت مار)
+    val dashPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 320f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
+            repeatMode = RepeatMode.Restart
         ),
-        label = "OrbitSweep"
+        label = "OrbitDash"
     )
 
     // پالس آیکون شیلد
     val iconAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = if (isConnecting) 0.5f else 1f,
+        targetValue = if (isConnecting) 0.6f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 750, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "IconPulse"
     )
 
-    // موج‌های ریپل هنگام لمس دکمه
+    // موج‌های ریپل لمس دکمه
     val ripples = remember { mutableStateListOf<Animatable<Float, AnimationVector1D>>() }
     val rippleScope = rememberCoroutineScope()
 
-    // انیمیشن فنری برای لمس دکمه
     var isPressed by remember { mutableStateOf(false) }
     val buttonClickScale by animateFloatAsState(
         targetValue = if (isPressed) 0.93f else 1.0f,
@@ -756,7 +759,7 @@ fun WardenPowerButton(
         label = "ClickScale"
     )
 
-    // ساخت Paths برای لوگوی اختصاصی (بدون نیاز به کتابخونه‌های خارجی یا فایل‌های وکتور)
+    // ساخت مسیرهای پات (Paths) برای لوگو
     val shieldPath = remember {
         Path().apply {
             moveTo(12f, 22f)
@@ -779,15 +782,14 @@ fun WardenPowerButton(
         }
     }
 
-    // ایجاد فضای بیشتر برای هاله و مدارها
     Box(
         modifier = Modifier.size(size * 1.6f),
         contentAlignment = Alignment.Center
     ) {
-        // 1. هاله‌ی نورانی پشت دکمه (Vibrant Glow)
+        // ۱. لایه هاله‌ی نورانی (v1-glow)
         Box(
             modifier = Modifier
-                .size(size * 1.6f)
+                .size(size * 1.4f)
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
@@ -800,52 +802,67 @@ fun WardenPowerButton(
                 )
         )
 
-        // 2. لایه افکت شیشه‌ای (Liquid Glass Layer)
-        val glassColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.6f)
+        // ۲. لایه افکت شیشه‌ای (v1-glass)
         Box(
             modifier = Modifier
-                .size(size * 1.3f)
+                .size(size * 1.25f)
                 .clip(CircleShape)
-                .background(glassColor)
-                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                .background(glassBgColor)
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.2f),
+                    shape = CircleShape
+                )
         )
 
-        // 3. انیمیشن مدار چرخان (Orbital Tracer) فقط در زمان اتصال
+        // ۳. انیمیشن مدار چرخان (v1-spin-ring) دقیقاً مشابه فایل HTML
         if (isConnecting) {
             Canvas(
                 modifier = Modifier
                     .size(size * 1.15f)
                     .graphicsLayer { rotationZ = orbitRotation }
             ) {
-                drawArc(
+                val strokeWidthPx = 4.dp.toPx()
+                val radius = (size.toPx() * 1.15f / 2f) - (strokeWidthPx / 2f)
+                
+                drawCircle(
                     color = mainColor,
-                    startAngle = 0f,
-                    sweepAngle = orbitSweep,
-                    useCenter = false,
+                    radius = radius,
+                    center = center,
                     style = Stroke(
-                        width = 3.dp.toPx(), 
-                        cap = StrokeCap.Round
+                        width = strokeWidthPx,
+                        cap = StrokeCap.Round,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            intervals = floatArrayOf(6f, 320f),
+                            phase = -dashPhase
+                        )
                     )
                 )
             }
         }
 
-        // موج‌های لمس (Ripples)
+        // موج‌های ریپل لمس
         ripples.forEach { anim ->
             Box(
                 modifier = Modifier
                     .size(size)
                     .scale(anim.value)
                     .clip(CircleShape)
-                    .background(mainColor.copy(alpha = (0.3f * (1f - (anim.value - 1f) / 0.8f)).coerceIn(0f, 0.3f)))
+                    .background(mainColor.copy(alpha = (0.5f * (1f - (anim.value - 1f) / 14f)).coerceIn(0f, 0.5f)))
             )
         }
 
-        // 4. هسته دکمه تعاملی (Main Button Core)
+        // ۴. هسته اصلی دکمه (v1-ring)
         Box(
             modifier = Modifier
                 .size(size)
                 .scale(buttonClickScale)
+                .shadow(
+                    elevation = 8.dp,
+                    shape = CircleShape,
+                    spotColor = mainColor.copy(alpha = 0.3f),
+                    ambientColor = mainColor.copy(alpha = 0.1f)
+                )
                 .clip(CircleShape)
                 .background(containerColor)
                 .border(
@@ -862,8 +879,8 @@ fun WardenPowerButton(
                         ripples.add(rippleAnim)
                         rippleScope.launch {
                             rippleAnim.animateTo(
-                                targetValue = 1.8f,
-                                animationSpec = tween(durationMillis = 600, easing = LinearOutSlowInEasing)
+                                targetValue = 15f,
+                                animationSpec = tween(durationMillis = 700, easing = CubicBezierEasing(0f, 0f, 0.2f, 1f))
                             )
                             ripples.remove(rippleAnim)
                         }
@@ -883,7 +900,6 @@ fun WardenPowerButton(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // رندر کردن لوگوی اختصاصی و زاویه‌دار W به صورت Native
                 Canvas(
                     modifier = Modifier
                         .size(size * 0.32f)
@@ -893,14 +909,12 @@ fun WardenPowerButton(
                     withTransform({
                         scale(s, s, pivot = Offset.Zero)
                     }) {
-                        // کشیدن سپر
                         drawPath(
                             path = shieldPath,
                             color = mainColor,
                             style = Stroke(width = 1.5f, cap = StrokeCap.Round, join = StrokeJoin.Round),
                             alpha = 0.85f
                         )
-                        // کشیدن حرف W
                         drawPath(
                             path = wPath,
                             color = mainColor,
@@ -909,7 +923,7 @@ fun WardenPowerButton(
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 Text(
                     text = when {
@@ -920,7 +934,7 @@ fun WardenPowerButton(
                     color = mainColor,
                     fontSize = (size.value * 0.105f).sp, 
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
+                    letterSpacing = 2.sp,
                     maxLines = 1,
                     textAlign = TextAlign.Center
                 )
