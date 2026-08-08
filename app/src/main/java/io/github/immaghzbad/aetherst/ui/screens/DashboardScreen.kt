@@ -9,7 +9,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,8 +27,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -72,11 +71,9 @@ fun DashboardScreen(
         }
     }
 
-    val isDark = isSystemInDarkTheme()
-    
-    // اعمال دقیق رنگ‌های پس‌زمینه بر اساس فایل HTML شما
-    val htmlDashboardBg = if (isDark) Color(0xFF0B1120) else Color(0xFFF4F7FB)
-    val htmlOnDashboardBg = if (isDark) Color(0xFFF8FAFC) else Color(0xFF1E293B)
+    // استفاده از رنگ‌های متریال ۳ برای هماهنگی کامل با تغییر تم داخل اپلیکیشن
+    val htmlDashboardBg = MaterialTheme.colorScheme.background
+    val htmlOnDashboardBg = MaterialTheme.colorScheme.onBackground
 
     BoxWithConstraints(
         modifier = Modifier
@@ -204,7 +201,6 @@ fun DashboardScreen(
                     .padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // محاسبه سایز دقیق دکمه با حفظ تناسبات HTML
                 val minDim = if (screenWidth < screenHeight) screenWidth else screenHeight
                 val buttonWrapSize = (minDim * 0.75f).coerceIn(250.dp, 350.dp)
                 
@@ -385,8 +381,8 @@ fun WardenStatusHeroCard(
     val defaultMutedColor = MaterialTheme.colorScheme.onSurfaceVariant
     val statusColor by animateColorAsState(
         targetValue = when (connectionStatus) {
-            ConnectionStatus.RUNNING -> Color(0xFF10B981) // HTML Connected Green
-            ConnectionStatus.STARTING, ConnectionStatus.VALIDATING, ConnectionStatus.RECONNECTING, ConnectionStatus.STOPPING -> Color(0xFFF59E0B) // HTML Amber
+            ConnectionStatus.RUNNING -> Color(0xFF10B981)
+            ConnectionStatus.STARTING, ConnectionStatus.VALIDATING, ConnectionStatus.RECONNECTING, ConnectionStatus.STOPPING -> Color(0xFFF59E0B)
             ConnectionStatus.ERROR -> appTheme.error
             ConnectionStatus.STOPPED -> defaultMutedColor
         },
@@ -637,7 +633,7 @@ fun WardenStatusHeroCard(
 
 /**
  * WardenPowerButton - 1000% Exact Match HTML Edition
- * Orbital Tracer, Liquid Glass, Touch Pad Ripple, Vibrant Glow
+ * Orbital Tracer, Liquid Glass, Touch Pad Ripple, Vibrant Glow (Fixed with requested exact colors)
  */
 @Composable
 fun WardenPowerButton(
@@ -651,15 +647,14 @@ fun WardenPowerButton(
                        connectionStatus == ConnectionStatus.RECONNECTING
     val isError = connectionStatus == ConnectionStatus.ERROR
 
-    val isDark = isSystemInDarkTheme()
     val appTheme = LocalAppTheme.current
     val baseThemeColor = MaterialTheme.colorScheme.primary
 
-    // 1. استخراج دقیق رنگ‌های استیت از HTML
+    // ۱. رنگ حلقه‌ها بر اساس وضعیت
     val cRing by animateColorAsState(
         targetValue = when {
-            isRunning -> Color(0xFF10B981) // HTML Emerald
-            isConnecting -> Color(0xFFF59E0B) // HTML Amber
+            isRunning -> Color(0xFF10B981) // سبز متصل
+            isConnecting -> Color(0xFFF59E0B) // زرد در حال اتصال
             isError -> appTheme.error
             else -> baseThemeColor
         },
@@ -667,39 +662,39 @@ fun WardenPowerButton(
         label = "cRing"
     )
 
+    // ۲. رنگ هاله (Glow) به صورت دقیق: حالت خاموش = رنگ تم، حال اتصال = زرد، متصل = سبز (با وضوح بالا)
     val cGlow by animateColorAsState(
         targetValue = when {
-            isRunning -> Color(0xFF10B981).copy(alpha = 0.65f)
-            isConnecting -> Color(0xFFF59E0B).copy(alpha = 0.65f)
-            isError -> appTheme.error.copy(alpha = 0.65f)
-            else -> baseThemeColor.copy(alpha = 0.65f)
+            isRunning -> Color(0xFF10B981).copy(alpha = 0.85f)
+            isConnecting -> Color(0xFFF59E0B).copy(alpha = 0.85f)
+            isError -> appTheme.error.copy(alpha = 0.85f)
+            else -> baseThemeColor.copy(alpha = 0.85f)
         },
-        animationSpec = tween(600, easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)),
+        animationSpec = tween(600, easing = LinearOutSlowInEasing),
         label = "cGlow"
     )
 
     val cBg by animateColorAsState(
         targetValue = when {
-            isRunning -> if (isDark) Color(0xFF10B981).copy(alpha = 0.1f) else Color(0xFFECFDF5)
-            isConnecting -> if (isDark) Color(0xFFF59E0B).copy(alpha = 0.05f) else Color(0xFFFFFBEB)
-            isError -> appTheme.error.copy(alpha = if (isDark) 0.1f else 0.05f)
-            else -> if (isDark) baseThemeColor.copy(alpha = 0.05f) else Color(0xFFFFFFFF)
+            isRunning -> Color(0xFF10B981).copy(alpha = 0.1f)
+            isConnecting -> Color(0xFFF59E0B).copy(alpha = 0.08f)
+            isError -> appTheme.error.copy(alpha = 0.1f)
+            else -> baseThemeColor.copy(alpha = 0.05f)
         },
         animationSpec = tween(400),
         label = "cBg"
     )
 
-    // رنگ لیکویید گلس برای لایت و دارک مود
-    val glassBgColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.6f)
-    val glassBorderColor = Color.White.copy(alpha = 0.2f)
+    // رنگ لیکویید گلس (سازگار با تم‌های متریال ۳)
+    val glassBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
+    val glassBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
 
-    // 2. مقیاس‌بندی دقیق و ریاضی ابعاد بر اساس فایل HTML شما (گرفته شده از نسبت‌های 320px)
-    val glowSize = wrapSize * 1.125f     // 360px / 320px
-    val glassSize = wrapSize * 0.875f    // 280px / 320px
-    val spinRingSize = wrapSize * 0.8375f // 268px / 320px
-    val coreRingSize = wrapSize * 0.75f  // 240px / 320px
+    // مقیاس‌بندی ابعاد بر اساس فایل HTML
+    val glowSize = wrapSize * 1.125f     
+    val glassSize = wrapSize * 0.875f    
+    val spinRingSize = wrapSize * 0.8375f 
+    val coreRingSize = wrapSize * 0.75f  
 
-    // 3. انیمیشن‌های Pulse و Orbital Tracer
     val infiniteTransition = rememberInfiniteTransition(label = "power_button")
     
     val iconScale by infiniteTransition.animateFloat(
@@ -715,30 +710,20 @@ fun WardenPowerButton(
         label = "iconAlpha"
     )
 
-    // Orbital Rotate: 0 -> 360 (2s linear)
+    // چرخش روان مدار زرد
     val orbitRotation by infiniteTransition.animateFloat(
         initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing)),
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing)),
         label = "orbitRotation"
     )
 
-    // Orbital Dash (کش آمدن و جمع شدن مدار چرخنده)
-    val orbitPhase by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = FastOutSlowInEasing), RepeatMode.Restart),
-        label = "orbitPhase"
+    // باز و بسته شدن نرم و روان خط مدار (Sweep Angle)
+    val sweepAngle by infiniteTransition.animateFloat(
+        initialValue = 40f, targetValue = 300f,
+        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "sweepAngle"
     )
 
-    // تبدیل Phase به زوایای کش آمدن مدار (Sweep Angle)
-    val sweepAngle = if (orbitPhase < 0.5f) {
-        2f + (118f * (orbitPhase * 2f)) // 2 to 120
-    } else {
-        120f - (118f * ((orbitPhase - 0.5f) * 2f)) // 120 to 2
-    }
-    // حرکت رو به عقب خط (Offset)
-    val offsetAngle = -(320f * orbitPhase)
-
-    // 4. ساخت مسیرهای برداری (SVG) برای لوگوی W داخل Shield 
     val shieldPath = remember {
         Path().apply {
             moveTo(12f, 22f)
@@ -765,25 +750,28 @@ fun WardenPowerButton(
         modifier = Modifier.size(glowSize),
         contentAlignment = Alignment.Center
     ) {
-        // [ لایه اول: Vibrant Glow / هاله نورانی ] (v1-glow)
+        // [ لایه اول: Vibrant Glow / هاله نورانی پخش و پررنگ ]
         Box(
             modifier = Modifier
                 .size(glowSize)
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(cGlow, Color.Transparent),
-                        radius = with(LocalDensity.current) { (glowSize.toPx() / 2f) * 0.75f }
+                        colors = listOf(
+                            cGlow,
+                            cGlow.copy(alpha = 0.3f),
+                            Color.Transparent
+                        ),
+                        radius = with(LocalDensity.current) { glowSize.toPx() / 2f }
                     )
                 )
         )
 
-        // Wrapper اصلی (320px معادل در HTML)
         Box(
             modifier = Modifier.size(wrapSize),
             contentAlignment = Alignment.Center
         ) {
-            // [ لایه دوم: Liquid Glass ] (v1-glass)
+            // [ لایه دوم: Liquid Glass ]
             Box(
                 modifier = Modifier
                     .size(glassSize)
@@ -792,23 +780,21 @@ fun WardenPowerButton(
                     .border(1.dp, glassBorderColor, CircleShape)
             )
 
-            // [ لایه سوم: Orbital Tracer / انیمیشن مدار چرخان ] (v1-spin-ring)
+            // [ لایه سوم: Orbital Tracer / انیمیشن روان و جذاب مدار زرد ]
             if (isConnecting) {
                 Canvas(modifier = Modifier.size(spinRingSize)) {
-                    val strokeWidthPx = 4.dp.toPx() // Stroke width = 4
+                    val strokeWidthPx = 4.dp.toPx()
                     rotate(orbitRotation) {
-                        // یک سایه ملایم همرنگِ خودِ خط برای افکت drop-shadow در HTML
                         drawArc(
-                            color = cRing.copy(alpha = 0.35f),
-                            startAngle = offsetAngle,
-                            sweepAngle = sweepAngle,
+                            color = cRing.copy(alpha = 0.3f),
+                            startAngle = 0f,
+                            sweepAngle = sweepAngle + 15f,
                             useCenter = false,
                             style = Stroke(width = strokeWidthPx * 2.5f, cap = StrokeCap.Round)
                         )
-                        // خط اصلی چرخنده
                         drawArc(
                             color = cRing,
-                            startAngle = offsetAngle,
+                            startAngle = 0f,
                             sweepAngle = sweepAngle,
                             useCenter = false,
                             style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
@@ -817,25 +803,23 @@ fun WardenPowerButton(
                 }
             }
 
-            // [ تاچ‌پد: سیستم ریپل کاملاً منطبق بر e.clientX (دقیقاً در نقطه لمس) ]
+            // [ تاچ‌پد: ریپل دقیق در نقطه لمس ]
             val ripples = remember { mutableStateListOf<Pair<Animatable<Float, AnimationVector1D>, Offset>>() }
             val rippleScope = rememberCoroutineScope()
 
             Box(
                 modifier = Modifier
                     .size(coreRingSize)
-                    .shadow(12.dp, CircleShape, spotColor = Color.Black.copy(alpha = 0.25f))
+                    .shadow(12.dp, CircleShape, spotColor = Color.Black.copy(alpha =.25f))
                     .clip(CircleShape)
                     .background(cBg)
                     .border(3.dp, cRing, CircleShape)
                     .pointerInput(Unit) {
-                        // گرفتن مختصات دقیق لمس کاربر!
                         detectTapGestures(
                             onTap = { touchOffset ->
                                 val rippleAnim = Animatable(1f)
                                 ripples.add(rippleAnim to touchOffset)
                                 rippleScope.launch {
-                                    // Scale 1 to 15, duration 700ms
                                     rippleAnim.animateTo(
                                         targetValue = 15f,
                                         animationSpec = tween(700, easing = CubicBezierEasing(0f, 0f, 0.2f, 1f))
@@ -848,10 +832,8 @@ fun WardenPowerButton(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                // رسم انیمیشن ریپل سفارشی که از زیر انگشت باز می‌شود
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     ripples.forEach { (anim, touchOffset) ->
-                        // محاسبه Fade out: از 0.5 به 0 وقتی بزرگ می‌شود
                         val alpha = (0.5f * (1f - (anim.value - 1f) / 14f)).coerceIn(0f, 0.5f)
                         val radius = (size.width / 2f) * anim.value
                         drawCircle(
@@ -863,7 +845,6 @@ fun WardenPowerButton(
                     }
                 }
 
-                // محتوای مرکزی (Icon و Text) با افکت Pulse
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -873,7 +854,6 @@ fun WardenPowerButton(
                         alpha = iconAlpha
                     }
                 ) {
-                    // W Shield Icon (v1-icon)
                     Canvas(modifier = Modifier.size(coreRingSize * 0.27f)) {
                         val s = size.width / 24f
                         withTransform({ scale(s, s, Offset.Zero) }) {
@@ -893,11 +873,10 @@ fun WardenPowerButton(
                     
                     Spacer(modifier = Modifier.height(coreRingSize * 0.06f))
                     
-                    // (v1-label)
                     Text(
                         text = when {
                             isConnecting -> "CONNECTING"
-                            isRunning -> "CONNECTED" // دقیقا کلمه‌ی Connected در HTML 
+                            isRunning -> "CONNECTED"
                             else -> "CONNECT"
                         },
                         color = cRing,
